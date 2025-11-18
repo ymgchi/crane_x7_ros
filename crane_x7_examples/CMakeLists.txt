@@ -18,6 +18,7 @@ endif()
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(cv_bridge REQUIRED)
+find_package(gazebo_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(image_geometry REQUIRED)
 find_package(moveit_ros_planning_interface REQUIRED)
@@ -38,11 +39,13 @@ set(executable_list
   aruco_detection
   color_detection
   point_cloud_detection
+  banana
 )
 foreach(loop_var IN LISTS executable_list)
   add_executable(${loop_var} src/${loop_var}.cpp)
   ament_target_dependencies(${loop_var}
     cv_bridge
+    gazebo_msgs 
     geometry_msgs
     image_geometry
     moveit_ros_planning_interface
