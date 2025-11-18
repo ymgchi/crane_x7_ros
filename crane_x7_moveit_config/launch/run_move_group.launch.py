@@ -109,6 +109,14 @@ def generate_launch_description():
                                          'publish_state_updates': True,
                                          'publish_transforms_updates': True}
 
+    print("--- DEBUG PRINT ---")
+    print(f"robot_description_planning IS: {robot_description_planning}")
+    print(f"kinematics_yaml IS: {kinematics_yaml}")
+    print(f"ompl_planning_pipeline_config IS: {ompl_planning_pipeline_config}")
+    print(f"trajectory_execution IS: {trajectory_execution}")
+    print(f"moveit_controllers IS: {moveit_controllers}")
+    print(f"planning_scene_monitor_parameters IS: {planning_scene_monitor_parameters}")
+    print("--- END DEBUG PRINT ---")
     # Start the actual move_group node/action server
     run_move_group_node = Node(package='moveit_ros_move_group',
                                executable='move_group',
