@@ -137,12 +137,12 @@ int main(int argc, char ** argv)
 
   // MoveGroupの初期化
   MoveGroupInterface move_group_arm(move_group_arm_node, "arm");
-  move_group_arm.setMaxVelocityScalingFactor(0.3);  // 安全のため30%に制限
-  move_group_arm.setMaxAccelerationScalingFactor(0.3);
+  move_group_arm.setMaxVelocityScalingFactor(0.7);  // 70%に設定
+  move_group_arm.setMaxAccelerationScalingFactor(0.7);
 
   MoveGroupInterface move_group_gripper(move_group_gripper_node, "gripper");
-  move_group_gripper.setMaxVelocityScalingFactor(0.3);
-  move_group_gripper.setMaxAccelerationScalingFactor(0.3);
+  move_group_gripper.setMaxVelocityScalingFactor(0.7);
+  move_group_gripper.setMaxAccelerationScalingFactor(0.7);
   
   auto gripper_joint_values = move_group_gripper.getCurrentJointValues();
   const double GRIPPER_OPEN = angles::from_degrees(60.0);
@@ -180,7 +180,7 @@ int main(int argc, char ** argv)
     gripper_joint_values[0] = GRIPPER_OPEN;
     move_group_gripper.setJointValueTarget(gripper_joint_values);
     move_group_gripper.move();
-    rclcpp::sleep_for(std::chrono::milliseconds(500));
+    rclcpp::sleep_for(std::chrono::milliseconds(100));
 
     // 2. ピック位置の上に移動
     RCLCPP_INFO(LOGGER, "Moving above pick position");
@@ -189,7 +189,7 @@ int main(int argc, char ** argv)
       RCLCPP_ERROR(LOGGER, "Failed to move above pick position");
       continue;
     }
-    rclcpp::sleep_for(std::chrono::milliseconds(500));
+    rclcpp::sleep_for(std::chrono::milliseconds(100));
 
     // 3. 下降してピック位置へ（デカルト軌道）
     RCLCPP_INFO(LOGGER, "Descending to pick position");
@@ -204,7 +204,7 @@ int main(int argc, char ** argv)
     gripper_joint_values[0] = GRIPPER_CLOSE;
     move_group_gripper.setJointValueTarget(gripper_joint_values);
     move_group_gripper.move();
-    rclcpp::sleep_for(std::chrono::seconds(1));
+    rclcpp::sleep_for(std::chrono::milliseconds(100));
 
     // 5. 上昇
     RCLCPP_INFO(LOGGER, "Lifting object");
@@ -212,7 +212,7 @@ int main(int argc, char ** argv)
       RCLCPP_ERROR(LOGGER, "Failed to lift object");
       continue;
     }
-    rclcpp::sleep_for(std::chrono::milliseconds(500));
+    rclcpp::sleep_for(std::chrono::milliseconds(100));
 
     // 6. 配置位置の上に移動
     RCLCPP_INFO(LOGGER, "Moving above place position %d", task + 1);
@@ -221,7 +221,7 @@ int main(int argc, char ** argv)
       RCLCPP_ERROR(LOGGER, "Failed to move above place position");
       continue;
     }
-    rclcpp::sleep_for(std::chrono::milliseconds(500));
+    rclcpp::sleep_for(std::chrono::milliseconds(100));
 
     // 7. 下降して配置位置へ（デカルト軌道）
     RCLCPP_INFO(LOGGER, "Descending to place position");
@@ -229,33 +229,33 @@ int main(int argc, char ** argv)
       RCLCPP_ERROR(LOGGER, "Failed to descend to place position");
       continue;
     }
-    rclcpp::sleep_for(std::chrono::milliseconds(500));
+    rclcpp::sleep_for(std::chrono::milliseconds(100));
 
     // 8. グリッパーを開く
     RCLCPP_INFO(LOGGER, "Opening gripper to release object");
     gripper_joint_values[0] = GRIPPER_OPEN;
     move_group_gripper.setJointValueTarget(gripper_joint_values);
     move_group_gripper.move();
-    rclcpp::sleep_for(std::chrono::seconds(1));
+    rclcpp::sleep_for(std::chrono::milliseconds(300));
 
     // 9. 上昇
     RCLCPP_INFO(LOGGER, "Lifting from place position");
     if (!executeCartesianPath(move_group_arm, place_poses_above[task])) {
       RCLCPP_WARN(LOGGER, "Failed to lift from place position");
     }
-    rclcpp::sleep_for(std::chrono::milliseconds(500));
+    rclcpp::sleep_for(std::chrono::milliseconds(100));
 
     // 10. ホーム位置へ戻る
     RCLCPP_INFO(LOGGER, "Returning to home position");
     move_group_arm.setNamedTarget("home");
     move_group_arm.move();
-    rclcpp::sleep_for(std::chrono::seconds(1));
+    rclcpp::sleep_for(std::chrono::milliseconds(300));
 
     // 11. 物体を再スポーン（Gazeboのみ）
     if (task < 2) {  // 最後のタスクではリスポーン不要
       RCLCPP_INFO(LOGGER, "Spawning new object for next task");
       spawnObjectInGazebo(0.2, 0.0, 1.05);
-      rclcpp::sleep_for(std::chrono::seconds(2));
+      rclcpp::sleep_for(std::chrono::milliseconds(500));
     }
     
     RCLCPP_INFO(LOGGER, "Task %d completed", task + 1);
