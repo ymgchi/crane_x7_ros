@@ -21,7 +21,8 @@
 #include "moveit/move_group_interface/move_group_interface.h"
 #include "rclcpp/rclcpp.hpp"
 #include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
-#include "gazebo_msgs/srv/set_entity_state.hpp"
+#include <cstdlib>
+#include <unistd.h>
 
 using MoveGroupInterface = moveit::planning_interface::MoveGroupInterface;
 
@@ -49,35 +50,39 @@ geometry_msgs::msg::Pose createPose(
   return pose;
 }
 
-// Gazeboで物体の位置をリセット
-bool resetObjectInGazebo(
-  rclcpp::Node::SharedPtr node,
-  double x, double y, double z)
+// Gazeboで物体をスポーン（ros_gz_simを使用）
+static int spawn_count = 0;
+bool spawnObjectInGazebo(double x, double y, double z)
 {
-  auto client = node->create_client<gazebo_msgs::srv::SetEntityState>(
-    "/demo/set_entity_state");
-  
-  if (!client->wait_for_service(std::chrono::seconds(2))) {
-    RCLCPP_WARN(LOGGER, "Gazebo service not available, skipping object reset");
-    return false;
-  }
-  
-  auto request = std::make_shared<gazebo_msgs::srv::SetEntityState::Request>();
-  request->state.name = "target_object";
-  request->state.pose.position.x = x;
-  request->state.pose.position.y = y;
-  request->state.pose.position.z = z;
-  request->state.pose.orientation.w = 1.0;
-  
-  auto result = client->async_send_request(request);
-  
-  if (rclcpp::spin_until_future_complete(node, result) ==
-      rclcpp::FutureReturnCode::SUCCESS)
-  {
-    RCLCPP_INFO(LOGGER, "Object reset successfully");
+  // 新しい物体をスポーン
+  RCLCPP_INFO(LOGGER, "Spawning new object at (%.2f, %.2f, %.2f)", x, y, z);
+  char cmd[2048];
+  char name[64];
+  snprintf(name, sizeof(name), "wood_cube_%d", spawn_count++);
+
+  snprintf(cmd, sizeof(cmd),
+    "ros2 run ros_gz_sim create -world default -name '%s' "
+    "-x %f -y %f -z %f "
+    "-string '<sdf version=\"1.6\"><model name=\"%s\">"
+    "<static>false</static>"
+    "<link name=\"link\">"
+    "<inertial><mass>0.5</mass>"
+    "<inertia><ixx>0.0002</ixx><iyy>0.0002</iyy><izz>0.0002</izz><ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia>"
+    "</inertial>"
+    "<collision name=\"collision\"><geometry><box><size>0.05 0.05 0.05</size></box></geometry></collision>"
+    "<visual name=\"visual\"><geometry><box><size>0.05 0.05 0.05</size></box></geometry>"
+    "<material><ambient>0.8 0.6 0.4 1</ambient><diffuse>0.8 0.6 0.4 1</diffuse></material>"
+    "</visual></link></model></sdf>'",
+    name, x, y, z, name
+  );
+
+  int spawn_result = std::system(cmd);
+
+  if (spawn_result == 0) {
+    RCLCPP_INFO(LOGGER, "Object spawned successfully");
     return true;
   } else {
-    RCLCPP_WARN(LOGGER, "Failed to reset object");
+    RCLCPP_WARN(LOGGER, "Failed to spawn object");
     return false;
   }
 }
@@ -141,16 +146,16 @@ int main(int argc, char ** argv)
   
   auto gripper_joint_values = move_group_gripper.getCurrentJointValues();
   const double GRIPPER_OPEN = angles::from_degrees(60.0);
-  const double GRIPPER_CLOSE = angles::from_degrees(20.0);
+  const double GRIPPER_CLOSE = angles::from_degrees(8.0);
 
   // 位置の定義
-  auto pick_pose = createPose(0.2, 0.0, 0.10, -180, 0, -90);
+  auto pick_pose = createPose(0.2, 0.0, 0.11, -180, 0, -90);
   auto pick_pose_above = createPose(0.2, 0.0, 0.25, -180, 0, -90);
 
   std::vector<geometry_msgs::msg::Pose> place_poses = {
-    createPose(0.35, 0.20, 0.10, -180, 0, -90),   // 右
-    createPose(0.35, 0.0, 0.10, -180, 0, -90),    // 中央
-    createPose(0.35, -0.20, 0.10, -180, 0, -90)   // 左
+    createPose(0.35, 0.20, 0.12, -180, 0, -90),   // 右
+    createPose(0.35, 0.0, 0.12, -180, 0, -90),    // 中央
+    createPose(0.35, -0.20, 0.12, -180, 0, -90)   // 左
   };
 
   std::vector<geometry_msgs::msg::Pose> place_poses_above = {
@@ -246,10 +251,10 @@ int main(int argc, char ** argv)
     move_group_arm.move();
     rclcpp::sleep_for(std::chrono::seconds(1));
 
-    // 11. 物体をリセット（Gazeboのみ）
-    if (task < 2) {  // 最後のタスクではリセット不要
-      RCLCPP_INFO(LOGGER, "Resetting object position for next task");
-      resetObjectInGazebo(move_group_arm_node, 0.2, 0.0, 0.1);
+    // 11. 物体を再スポーン（Gazeboのみ）
+    if (task < 2) {  // 最後のタスクではリスポーン不要
+      RCLCPP_INFO(LOGGER, "Spawning new object for next task");
+      spawnObjectInGazebo(0.2, 0.0, 1.05);
       rclcpp::sleep_for(std::chrono::seconds(2));
     }
     

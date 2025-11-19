@@ -45,7 +45,7 @@ foreach(loop_var IN LISTS executable_list)
   add_executable(${loop_var} src/${loop_var}.cpp)
   ament_target_dependencies(${loop_var}
     cv_bridge
-    gazebo_msgs 
+    gazebo_msgs
     geometry_msgs
     image_geometry
     moveit_ros_planning_interface
