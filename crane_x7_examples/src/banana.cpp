@@ -144,19 +144,19 @@ int main(int argc, char ** argv)
   const double GRIPPER_CLOSE = angles::from_degrees(20.0);
 
   // 位置の定義
-  auto pick_pose = createPose(0.2, 0.0, 0.13, -180, 0, -90);
+  auto pick_pose = createPose(0.2, 0.0, 0.10, -180, 0, -90);
   auto pick_pose_above = createPose(0.2, 0.0, 0.25, -180, 0, -90);
-  
+
   std::vector<geometry_msgs::msg::Pose> place_poses = {
-    createPose(0.2, 0.15, 0.13, -180, 0, -90),   // 右
-    createPose(0.2, 0.0, 0.13, -180, 0, -90),    // 中央
-    createPose(0.2, -0.15, 0.13, -180, 0, -90)   // 左
+    createPose(0.35, 0.20, 0.10, -180, 0, -90),   // 右
+    createPose(0.35, 0.0, 0.10, -180, 0, -90),    // 中央
+    createPose(0.35, -0.20, 0.10, -180, 0, -90)   // 左
   };
-  
+
   std::vector<geometry_msgs::msg::Pose> place_poses_above = {
-    createPose(0.2, 0.15, 0.25, -180, 0, -90),
-    createPose(0.2, 0.0, 0.25, -180, 0, -90),
-    createPose(0.2, -0.15, 0.25, -180, 0, -90)
+    createPose(0.35, 0.20, 0.25, -180, 0, -90),
+    createPose(0.35, 0.0, 0.25, -180, 0, -90),
+    createPose(0.35, -0.20, 0.25, -180, 0, -90)
   };
 
   RCLCPP_INFO(LOGGER, "Starting banana sorting demo");

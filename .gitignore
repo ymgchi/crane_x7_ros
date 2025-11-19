@@ -54,3 +54,7 @@ CATKIN_IGNORE
 
 # MacOS metadata files
 .DS_store
+
+# ROS2 build artifacts
+install/
+log/
