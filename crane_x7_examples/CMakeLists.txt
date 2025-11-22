@@ -40,6 +40,7 @@ set(executable_list
   color_detection
   point_cloud_detection
   banana
+  color_sorting
 )
 foreach(loop_var IN LISTS executable_list)
   add_executable(${loop_var} src/${loop_var}.cpp)

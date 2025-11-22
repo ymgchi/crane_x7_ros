@@ -18,8 +18,6 @@ from ament_index_python.packages import get_package_share_directory
 from crane_x7_description.robot_description_loader import RobotDescriptionLoader
 from launch import LaunchDescription
 from launch.actions import ExecuteProcess
-from launch.actions import IncludeLaunchDescription
-from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_ros.actions import Node
 from launch_ros.actions import SetParameter
 
@@ -57,12 +55,7 @@ def generate_launch_description():
     description_loader.gz_control_config_file_path = 'config/crane_x7_controllers.yaml'
     description = description_loader.load()
 
-    move_group = IncludeLaunchDescription(
-            PythonLaunchDescriptionSource([
-                get_package_share_directory('crane_x7_moveit_config'),
-                '/launch/run_move_group.launch.py']),
-            launch_arguments={'loaded_description': description}.items()
-        )
+    # MoveItは起動しない（プログラム側で起動する）
 
     spawn_joint_state_controller = ExecuteProcess(
                 cmd=['ros2 run controller_manager spawner joint_state_controller'],
@@ -110,7 +103,7 @@ def generate_launch_description():
         SetParameter(name='use_sim_time', value=True),
         ign_gazebo,
         ignition_spawn_entity,
-        move_group,
+        # move_groupは起動しない
         spawn_joint_state_controller,
         spawn_arm_controller,
         spawn_gripper_controller,
