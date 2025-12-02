@@ -34,8 +34,10 @@ def generate_launch_description():
     gui_config = os.path.join(
         get_package_share_directory('crane_x7_gazebo'), 'gui', 'gui.config')
     # -r オプションで起動時にシミュレーションをスタートしないと、コントローラが起動しない
+    # OGRE レンダリングエンジンを使用（OGRE2 で真っ黒になる問題を回避）
+    env['LIBGL_ALWAYS_SOFTWARE'] = '1'  # ソフトウェアレンダリング使用
     ign_gazebo = ExecuteProcess(
-            cmd=['ign gazebo -r', world_file, '--gui-config', gui_config],
+            cmd=['ign gazebo -r', world_file, '--gui-config', gui_config, '--render-engine', 'ogre'],
             output='screen',
             additional_env=env,
             shell=True
@@ -106,6 +108,31 @@ def generate_launch_description():
                 output='screen'
             )
 
+    # Generate PointCloud2 from depth and color images
+    depth_frame_relay = Node(
+                package='crane_x7_examples',
+                executable='depth_frame_relay.py',
+                name='depth_frame_relay',
+                output='screen',
+                parameters=[{
+                    'input_topic': '/camera/aligned_depth_to_color/image_raw',
+                    'output_topic': '/camera/aligned_depth_to_color/image_raw_frame_fixed',
+                    'target_frame': 'camera_link'
+                }]
+            )
+
+    point_cloud_xyzrgb = Node(
+                package='depth_image_proc',
+                executable='point_cloud_xyzrgb_node',
+                remappings=[
+                    ('depth_registered/image_rect', '/camera/aligned_depth_to_color/image_raw_frame_fixed'),
+                    ('rgb/image_rect_color', '/camera/color/image_raw'),
+                    ('rgb/camera_info', '/camera/color/camera_info'),
+                    ('points', '/camera/depth/color/points')
+                ],
+                output='screen'
+            )
+
     return LaunchDescription([
         SetParameter(name='use_sim_time', value=True),
         ign_gazebo,
@@ -115,5 +142,7 @@ def generate_launch_description():
         spawn_arm_controller,
         spawn_gripper_controller,
         bridge,
-        camera_image_bridge
+        camera_image_bridge,
+        depth_frame_relay,
+        point_cloud_xyzrgb
     ])

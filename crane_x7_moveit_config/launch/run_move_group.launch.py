@@ -20,6 +20,7 @@ from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
+from launch_ros.parameter_descriptions import ParameterValue
 import yaml
 
 # Reference: https://github.com/ros-planning/moveit2_tutorials/blob/humble/doc/
@@ -50,6 +51,9 @@ def load_yaml(package_name, file_path):
 
 def generate_launch_description():
     description_loader = RobotDescriptionLoader()
+    # Note: For Gazebo usage, gz_control_config_package and gz_control_config_file_path
+    # must be set by the parent launch file. The default_value only works for non-Gazebo
+    # (real robot) usage where these parameters are not needed.
 
     declare_loaded_description = DeclareLaunchArgument(
         'loaded_description',
@@ -65,7 +69,8 @@ def generate_launch_description():
         description='Set the path to rviz configuration file.'
     )
 
-    robot_description = {'robot_description': LaunchConfiguration('loaded_description')}
+    robot_description = {'robot_description': ParameterValue(
+        LaunchConfiguration('loaded_description'), value_type=str)}
 
     robot_description_semantic_config = load_file(
         'crane_x7_moveit_config', 'config/crane_x7.srdf')

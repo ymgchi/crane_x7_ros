@@ -22,11 +22,13 @@ find_package(gazebo_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(image_geometry REQUIRED)
 find_package(moveit_ros_planning_interface REQUIRED)
-find_package(OpenCV REQUIRED COMPONENTS core)
+find_package(OpenCV REQUIRED COMPONENTS core ml)
 find_package(pcl_conversions REQUIRED)
 find_package(pcl_ros REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(tf2_ros REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
+find_package(tf2_eigen REQUIRED)
 
 # Build and install node executables
 set(executable_list
@@ -41,6 +43,8 @@ set(executable_list
   point_cloud_detection
   banana
   color_sorting
+  edge_based_sorting
+  color_filtered_grasp_pcl
 )
 foreach(loop_var IN LISTS executable_list)
   add_executable(${loop_var} src/${loop_var}.cpp)
@@ -54,7 +58,9 @@ foreach(loop_var IN LISTS executable_list)
     pcl_ros
     pcl_conversions
     rclcpp
+    tf2_ros
     tf2_geometry_msgs
+    tf2_eigen
   )
 
   install(TARGETS
@@ -66,6 +72,20 @@ endforeach()
 install(DIRECTORY
   launch
   DESTINATION share/${PROJECT_NAME}/
+)
+
+# Install Python demo scripts for distribution (kept outside of catkin/ament build).
+install(DIRECTORY
+  scripts
+  DESTINATION share/${PROJECT_NAME}/
+  FILES_MATCHING PATTERN "*.py"
+)
+
+# Install executable Python nodes under lib for ros2 launch/run.
+install(PROGRAMS
+  scripts/color_filtered_grasp_live.py
+  scripts/depth_frame_relay.py
+  DESTINATION lib/${PROJECT_NAME}
 )
 
 if(BUILD_TESTING)

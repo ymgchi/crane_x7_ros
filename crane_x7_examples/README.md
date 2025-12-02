@@ -31,6 +31,8 @@
       - [Videos](#videos-6)
     - [point\_cloud\_detection](#point_cloud_detection)
       - [Videos](#videos-7)
+  - [補足: Pythonデモ（色フィルタ付き把持候補可視化）](#補足-pythonデモ色フィルタ付き把持候補可視化)
+  - [補足: Gazebo/RealSense向けライブデモノード](#補足-gazeborealsense向けライブデモノード)
 
 ## 準備（実機を使う場合）
 
@@ -303,3 +305,22 @@ ros2 launch crane_x7_examples camera_example.launch.py example:='point_cloud_det
 [![crane_x7_point_cloud_detection_demo](http://img.youtube.com/vi/RgAjxH0CAuk/hqdefault.jpg)](https://youtu.be/RgAjxH0CAuk)
 
 [back to camera example list](#camera-examples)
+
+---
+
+## 補足: Pythonデモ（色フィルタ付き把持候補可視化）
+
+`scripts/color_filtered_grasp_demo.py` に、Open3D を用いた点群生成・エッジ抽出・GMM クラスタリングのデモを追加しています（論文「Robotic grasp detection toward unknown objects using 3D edge detection and Gaussian mixture model for clustering candidates」に色フィルタを加えたもの）。
+
+- 依存パッケージ: `python3-open3d`, `python3-numpy`, `python3-sklearn`, `python3-matplotlib`
+- 実行例: `python3 scripts/color_filtered_grasp_demo.py`
+- Gazebo/MoveIt とは独立した可視化デモで、色フィルタ OFF/ON の結果を1画面で比較表示します。
+
+## 補足: Gazebo/RealSense向けライブデモノード
+
+Gazebo上の RealSense 点群（例: `/camera/depth/color/points`）に対して、箱の色を除外した上でエッジ抽出→GMMクラスタリングを行い、把持候補を配信する Python ノードを追加しています。
+
+- ノード: `scripts/color_filtered_grasp_live.py`
+- Launch: `ros2 launch crane_x7_examples color_filtered_grasp_live.launch.py`（デフォルトでRVizは起動しません。必要なら `start_rviz:=true` かつ `rviz_config:=...` で `run_move_group.rviz` などを指定）
+- 出力トピック: 把持候補 `color_filtered_grasp/target_pose` (PoseStamped), エッジ点群 `color_filtered_grasp/edges` (PointCloud2, 購読者がいるときのみ)
+- パラメータ: `input_topic` (デフォルト `/camera/depth/color/points`), `box_color`, `color_filter_radius`, `process_period` など。launchファイルで上書き可能。

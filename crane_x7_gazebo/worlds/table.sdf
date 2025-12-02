@@ -35,12 +35,61 @@
       </uri>
     </include>
 
-    <include>
-      <uri>
-        https://fuel.ignitionrobotics.org/1.0/OpenRobotics/models/Table
-      </uri>
-      <pose>0.29 0 0 0 0 1.5708</pose>
-    </include>
+    <!-- Black table for better color detection contrast -->
+    <model name="black_table">
+      <static>true</static>
+      <pose>0.29 0 0 0 0 0</pose>
+      <link name="table_top">
+        <pose>0 0 1.0 0 0 0</pose>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>0.8 1.2 0.03</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>0.8 1.2 0.03</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.1 0.1 0.1 1</ambient>
+            <diffuse>0.1 0.1 0.1 1</diffuse>
+            <specular>0.2 0.2 0.2 1</specular>
+          </material>
+        </visual>
+      </link>
+      <link name="leg1">
+        <pose>0.35 0.55 0.5 0 0 0</pose>
+        <collision name="collision"><geometry><cylinder><radius>0.02</radius><length>1.0</length></cylinder></geometry></collision>
+        <visual name="visual"><geometry><cylinder><radius>0.02</radius><length>1.0</length></cylinder></geometry>
+          <material><ambient>0.1 0.1 0.1 1</ambient><diffuse>0.1 0.1 0.1 1</diffuse></material>
+        </visual>
+      </link>
+      <link name="leg2">
+        <pose>0.35 -0.55 0.5 0 0 0</pose>
+        <collision name="collision"><geometry><cylinder><radius>0.02</radius><length>1.0</length></cylinder></geometry></collision>
+        <visual name="visual"><geometry><cylinder><radius>0.02</radius><length>1.0</length></cylinder></geometry>
+          <material><ambient>0.1 0.1 0.1 1</ambient><diffuse>0.1 0.1 0.1 1</diffuse></material>
+        </visual>
+      </link>
+      <link name="leg3">
+        <pose>-0.35 0.55 0.5 0 0 0</pose>
+        <collision name="collision"><geometry><cylinder><radius>0.02</radius><length>1.0</length></cylinder></geometry></collision>
+        <visual name="visual"><geometry><cylinder><radius>0.02</radius><length>1.0</length></cylinder></geometry>
+          <material><ambient>0.1 0.1 0.1 1</ambient><diffuse>0.1 0.1 0.1 1</diffuse></material>
+        </visual>
+      </link>
+      <link name="leg4">
+        <pose>-0.35 -0.55 0.5 0 0 0</pose>
+        <collision name="collision"><geometry><cylinder><radius>0.02</radius><length>1.0</length></cylinder></geometry></collision>
+        <visual name="visual"><geometry><cylinder><radius>0.02</radius><length>1.0</length></cylinder></geometry>
+          <material><ambient>0.1 0.1 0.1 1</ambient><diffuse>0.1 0.1 0.1 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
 
   </world>
 </sdf>

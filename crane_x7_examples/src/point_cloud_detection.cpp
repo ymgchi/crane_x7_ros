@@ -54,9 +54,11 @@ public:
   PointCloudSubscriber()
   : Node("point_cloud_detection")
   {
+    // Use SensorDataQoS for sensor topics (best effort, volatile)
+    auto qos = rclcpp::QoS(rclcpp::SensorDataQoS());
     point_cloud_subscription_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
       "/camera/depth/color/points",
-      10,
+      qos,
       std::bind(&PointCloudSubscriber::point_cloud_callback, this, std::placeholders::_1));
 
     publisher_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("/classified_points", 10);
@@ -81,20 +83,32 @@ private:
   {
     // カメラ座標系における点群をロボット座標系に変換
     geometry_msgs::msg::TransformStamped tf_msg;
+    std::string source_frame = msg->header.frame_id;
+
+    // GazeboのPointCloud2は "crane_x7/.../camera_depth" や "camera_color" をframe_idに付けるが、
+    // データの軸は camera_link と一致するため frame_id を正規化する
+    if (source_frame.find("camera_depth") != std::string::npos ||
+        source_frame.find("camera_color") != std::string::npos) {
+      source_frame = "camera_link";
+    }
 
     try {
       tf_msg = tf_buffer_->lookupTransform(
-        "base_link", msg->header.frame_id,
+        "base_link", source_frame,
         tf2::TimePointZero);
     } catch (const tf2::TransformException & ex) {
       RCLCPP_INFO(
-        this->get_logger(), "Could not transform base_link to camera_depth_optical_frame: %s",
-        ex.what());
+        this->get_logger(), "Could not transform base_link to %s: %s",
+        source_frame.c_str(), ex.what());
       return;
     }
 
+    // frame_idを正規化したものに差し替えてから変換する
+    sensor_msgs::msg::PointCloud2 cloud_source = *msg;
+    cloud_source.header.frame_id = source_frame;
+
     sensor_msgs::msg::PointCloud2 cloud_transformed;
-    pcl_ros::transformPointCloud("base_link", tf_msg, *msg, cloud_transformed);
+    pcl_ros::transformPointCloud("base_link", tf_msg, cloud_source, cloud_transformed);
 
     // ROSメッセージの点群フォーマットからPCLのフォーマットに変換
     auto cloud = std::make_shared<pcl::PointCloud<pcl::PointXYZRGB>>();
