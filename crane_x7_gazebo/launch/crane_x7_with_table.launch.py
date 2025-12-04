@@ -63,7 +63,10 @@ def generate_launch_description():
             PythonLaunchDescriptionSource([
                 get_package_share_directory('crane_x7_moveit_config'),
                 '/launch/run_move_group.launch.py']),
-            launch_arguments={'loaded_description': description}.items()
+            launch_arguments={
+                'loaded_description': description,
+                'use_sim_time': 'true'
+            }.items()
         )
 
     spawn_joint_state_controller = ExecuteProcess(
@@ -117,7 +120,7 @@ def generate_launch_description():
                 parameters=[{
                     'input_topic': '/camera/aligned_depth_to_color/image_raw',
                     'output_topic': '/camera/aligned_depth_to_color/image_raw_frame_fixed',
-                    'target_frame': 'camera_link'
+                    'target_frame': 'camera_depth_optical_frame'  # Match Gazebo's depth data convention
                 }]
             )
 

@@ -29,6 +29,7 @@ find_package(rclcpp REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
 find_package(tf2_eigen REQUIRED)
+find_package(std_srvs REQUIRED)
 
 # Build and install node executables
 set(executable_list
@@ -40,11 +41,11 @@ set(executable_list
   pick_and_place_tf
   aruco_detection
   color_detection
-  point_cloud_detection
   banana
   color_sorting
   edge_based_sorting
   color_filtered_grasp_pcl
+  motion_service_node
 )
 foreach(loop_var IN LISTS executable_list)
   add_executable(${loop_var} src/${loop_var}.cpp)
@@ -58,6 +59,7 @@ foreach(loop_var IN LISTS executable_list)
     pcl_ros
     pcl_conversions
     rclcpp
+    std_srvs
     tf2_ros
     tf2_geometry_msgs
     tf2_eigen
@@ -85,6 +87,13 @@ install(DIRECTORY
 install(PROGRAMS
   scripts/color_filtered_grasp_live.py
   scripts/depth_frame_relay.py
+  scripts/point_cloud_sorting_node.py
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+# Install point_cloud_sorting Python module
+install(DIRECTORY
+  scripts/point_cloud_sorting
   DESTINATION lib/${PROJECT_NAME}
 )
 

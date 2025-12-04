@@ -58,3 +58,5 @@ CATKIN_IGNORE
 # ROS2 build artifacts
 install/
 log/
+CLAUDE.md
+AGENTS.md

@@ -3,12 +3,15 @@
 <package format="3">
   <name>crane_x7_examples</name>
   <version>4.4.0</version>
-  <description>CRANE-X7 examples package</description>
+  <description>CRANE-X7 examples package with color sorting and point cloud sorting demos</description>
   <maintainer email="shop@rt-net.jp">RT Corporation</maintainer>
-  <license>Apache License 2.0</license>
+  <license>Apache-2.0</license>
 
+  <!-- Original authors -->
   <author email="s.aoki@rt-net.jp">Shota Aoki</author>
   <author email="kuwagata@rt-net.jp">Atsushi Kuwagata</author>
+  <!-- Demo contributors -->
+  <author>ymgchi</author>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
@@ -30,6 +33,8 @@
   <!-- Python demo dependencies (color-filtered grasp visualization & live node) -->
   <exec_depend>rclpy</exec_depend>
   <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>tf2_ros</exec_depend>
+  <exec_depend>tf2_sensor_msgs</exec_depend>
   <exec_depend>python3-numpy</exec_depend>
   <exec_depend>python3-matplotlib</exec_depend>
   <exec_depend>python3-sklearn</exec_depend>

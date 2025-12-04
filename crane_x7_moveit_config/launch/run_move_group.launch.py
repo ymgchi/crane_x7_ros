@@ -69,6 +69,13 @@ def generate_launch_description():
         description='Set the path to rviz configuration file.'
     )
 
+    declare_use_sim_time = DeclareLaunchArgument(
+        'use_sim_time',
+        default_value='false',
+        description='Use simulation (Gazebo) clock if true'
+    )
+    use_sim_time = LaunchConfiguration('use_sim_time')
+
     robot_description = {'robot_description': ParameterValue(
         LaunchConfiguration('loaded_description'), value_type=str)}
 
@@ -142,7 +149,8 @@ def generate_launch_description():
                      name='rviz2',
                      output='log',
                      arguments=['-d', rviz_config_file],
-                     parameters=[robot_description,
+                     parameters=[{'use_sim_time': use_sim_time},
+                                 robot_description,
                                  robot_description_semantic,
                                  ompl_planning_pipeline_config,
                                  kinematics_yaml])
@@ -163,6 +171,7 @@ def generate_launch_description():
 
     return LaunchDescription([declare_loaded_description,
                               declare_rviz_config_file,
+                              declare_use_sim_time,
                               run_move_group_node,
                               rviz_node,
                               static_tf,
