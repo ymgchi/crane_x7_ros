@@ -272,8 +272,12 @@ class RobotController:
         self._logger.info(f"Step 3: Descending to pick height (z={pick_z:.3f})")
         pick_pose = self._create_pick_pose(x, y, pick_z, yaw_deg)
         if not self._move_to_pose(pick_pose, cartesian=True):
-            self._logger.warn("Failed to descend")
-            return False
+            # Cartesian path may fail due to arm configuration validation
+            # (gripper would flip upward), try non-Cartesian as fallback
+            self._logger.warn("Cartesian descend failed, trying non-Cartesian path")
+            if not self._move_to_pose(pick_pose, cartesian=False):
+                self._logger.warn("Failed to descend (both Cartesian and non-Cartesian)")
+                return False
 
         # Step 3.5: Wait for arm to stabilize before gripping
         self._logger.info("Step 3.5: Waiting for arm to stabilize...")
@@ -282,6 +286,10 @@ class RobotController:
         # Step 4: Close gripper
         self._logger.info("Step 4: Closing gripper")
         self.close_gripper()
+
+        # Step 4.5: Wait after gripping to ensure object is secured
+        self._logger.info("Step 4.5: Waiting after grip...")
+        time.sleep(0.5)
 
         # Step 5: Lift object
         self._logger.info("Step 5: Lifting object")

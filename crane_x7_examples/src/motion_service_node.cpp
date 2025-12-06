@@ -34,6 +34,8 @@
 #include "geometry_msgs/msg/pose.hpp"
 #include "geometry_msgs/msg/pose_stamped.hpp"
 #include "moveit/move_group_interface/move_group_interface.h"
+#include "moveit_msgs/msg/constraints.hpp"
+#include "moveit_msgs/msg/joint_constraint.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "std_srvs/srv/trigger.hpp"
 #include "std_srvs/srv/set_bool.hpp"
@@ -51,6 +53,16 @@ public:
     move_group_arm_(arm),
     move_group_gripper_(gripper)
   {
+    // Joint names for CRANE-X7 (7-DOF arm)
+    joint_names_ = {
+      "crane_x7_shoulder_fixed_part_pan_joint",
+      "crane_x7_shoulder_revolute_part_tilt_joint",
+      "crane_x7_upper_arm_revolute_part_twist_joint",
+      "crane_x7_upper_arm_revolute_part_rotate_joint",
+      "crane_x7_lower_arm_fixed_part_joint",
+      "crane_x7_lower_arm_revolute_part_joint",
+      "crane_x7_wrist_joint"
+    };
     // Initialize camera pose joints (from color_sorting.cpp)
     camera_pose_joints_ = {
       angles::from_degrees(0.0),
@@ -107,6 +119,155 @@ public:
   }
 
 private:
+  void logJointAngles(const std::string & action_name)
+  {
+    auto joint_values = move_group_arm_->getCurrentJointValues();
+    if (joint_values.size() >= 7) {
+      RCLCPP_INFO(this->get_logger(),
+        "[%s] Joint angles (deg): J1=%.1f, J2=%.1f, J3=%.1f, J4=%.1f, J5=%.1f, J6=%.1f, J7=%.1f",
+        action_name.c_str(),
+        angles::to_degrees(joint_values[0]),
+        angles::to_degrees(joint_values[1]),
+        angles::to_degrees(joint_values[2]),
+        angles::to_degrees(joint_values[3]),
+        angles::to_degrees(joint_values[4]),
+        angles::to_degrees(joint_values[5]),
+        angles::to_degrees(joint_values[6]));
+    }
+  }
+
+  moveit_msgs::msg::Constraints createArmConstraints()
+  {
+    // Get current joint angles
+    auto joint_values = move_group_arm_->getCurrentJointValues();
+    if (joint_values.size() < 7) {
+      return moveit_msgs::msg::Constraints();
+    }
+
+    moveit_msgs::msg::Constraints constraints;
+
+    // J5 constraint (crane_x7_lower_arm_fixed_part_joint)
+    // Keep J5 in range that maintains "elbow down" configuration
+    // Safe range: [-90°, +90°] (prevents arm from flipping over)
+    {
+      const double J5_SAFE_CENTER = angles::from_degrees(0.0);
+      const double J5_SAFE_HALF_RANGE = angles::from_degrees(90.0);
+
+      moveit_msgs::msg::JointConstraint j5_constraint;
+      j5_constraint.joint_name = "crane_x7_lower_arm_fixed_part_joint";
+      j5_constraint.position = J5_SAFE_CENTER;
+      j5_constraint.tolerance_above = J5_SAFE_HALF_RANGE;
+      j5_constraint.tolerance_below = J5_SAFE_HALF_RANGE;
+      j5_constraint.weight = 1.0;
+      constraints.joint_constraints.push_back(j5_constraint);
+
+      RCLCPP_DEBUG(this->get_logger(),
+        "J5 constraint: current=%.1f°, target_range=[%.1f°, %.1f°]",
+        angles::to_degrees(joint_values[4]),
+        angles::to_degrees(J5_SAFE_CENTER - J5_SAFE_HALF_RANGE),
+        angles::to_degrees(J5_SAFE_CENTER + J5_SAFE_HALF_RANGE));
+    }
+
+    // J6 constraint (crane_x7_lower_arm_revolute_part_joint)
+    // Keep J6 in range for gripper pointing downward
+    // Safe range: [-135°, +45°] (centered at -45° for pick operations)
+    {
+      const double J6_SAFE_CENTER = angles::from_degrees(-45.0);
+      const double J6_SAFE_HALF_RANGE = angles::from_degrees(90.0);
+
+      moveit_msgs::msg::JointConstraint j6_constraint;
+      j6_constraint.joint_name = "crane_x7_lower_arm_revolute_part_joint";
+      j6_constraint.position = J6_SAFE_CENTER;
+      j6_constraint.tolerance_above = J6_SAFE_HALF_RANGE;
+      j6_constraint.tolerance_below = J6_SAFE_HALF_RANGE;
+      j6_constraint.weight = 1.0;
+      constraints.joint_constraints.push_back(j6_constraint);
+
+      RCLCPP_DEBUG(this->get_logger(),
+        "J6 constraint: current=%.1f°, target_range=[%.1f°, %.1f°]",
+        angles::to_degrees(joint_values[5]),
+        angles::to_degrees(J6_SAFE_CENTER - J6_SAFE_HALF_RANGE),
+        angles::to_degrees(J6_SAFE_CENTER + J6_SAFE_HALF_RANGE));
+    }
+
+    // J7 constraint (crane_x7_wrist_joint)
+    // Safe range: [-45°, +135°]
+    {
+      const double J7_SAFE_CENTER = angles::from_degrees(45.0);
+      const double J7_SAFE_HALF_RANGE = angles::from_degrees(90.0);
+
+      moveit_msgs::msg::JointConstraint j7_constraint;
+      j7_constraint.joint_name = "crane_x7_wrist_joint";
+      j7_constraint.position = J7_SAFE_CENTER;
+      j7_constraint.tolerance_above = J7_SAFE_HALF_RANGE;
+      j7_constraint.tolerance_below = J7_SAFE_HALF_RANGE;
+      j7_constraint.weight = 1.0;
+      constraints.joint_constraints.push_back(j7_constraint);
+
+      RCLCPP_DEBUG(this->get_logger(),
+        "J7 constraint: current=%.1f°, target_range=[%.1f°, %.1f°]",
+        angles::to_degrees(joint_values[6]),
+        angles::to_degrees(J7_SAFE_CENTER - J7_SAFE_HALF_RANGE),
+        angles::to_degrees(J7_SAFE_CENTER + J7_SAFE_HALF_RANGE));
+    }
+
+    RCLCPP_INFO(this->get_logger(),
+      "Arm constraints applied: J5=[%.1f°,%.1f°], J6=[%.1f°,%.1f°], J7=[%.1f°,%.1f°]",
+      -90.0, 90.0, -135.0, 45.0, -45.0, 135.0);
+
+    return constraints;
+  }
+
+  bool isArmConfigurationValid(const std::vector<double>& joint_values)
+  {
+    // Check if arm configuration keeps gripper pointing downward
+    // Only validate J5 strictly - it's the main indicator of arm flip
+    // J6/J7 are logged as warnings but don't reject the trajectory
+
+    if (joint_values.size() < 7) {
+      return false;
+    }
+
+    double j5_deg = angles::to_degrees(joint_values[4]);
+    double j6_deg = angles::to_degrees(joint_values[5]);
+    double j7_deg = angles::to_degrees(joint_values[6]);
+
+    // J5 is the critical check - only reject if way out of range
+    // Relaxed range: [-120°, 120°] to allow more flexibility
+    if (j5_deg < -120.0 || j5_deg > 120.0) {
+      RCLCPP_WARN(this->get_logger(),
+        "J5 out of safe range: %.1f° (expected [-120°, 120°])", j5_deg);
+      return false;
+    }
+
+    // J6 and J7 - just log warnings, don't reject
+    if (j6_deg < -180.0 || j6_deg > 120.0) {
+      RCLCPP_DEBUG(this->get_logger(),
+        "J6 note: %.1f° (typical range [-180°, 120°])", j6_deg);
+    }
+
+    if (j7_deg < -180.0 || j7_deg > 180.0) {
+      RCLCPP_DEBUG(this->get_logger(),
+        "J7 note: %.1f° (typical range [-180°, 180°])", j7_deg);
+    }
+
+    return true;
+  }
+
+  bool validateTrajectory(const moveit_msgs::msg::RobotTrajectory& trajectory)
+  {
+    // Check if any point in the trajectory has invalid arm configuration
+    for (size_t i = 0; i < trajectory.joint_trajectory.points.size(); ++i) {
+      const auto& point = trajectory.joint_trajectory.points[i];
+      if (!isArmConfigurationValid(point.positions)) {
+        RCLCPP_WARN(this->get_logger(),
+          "Trajectory point %zu has invalid arm configuration", i);
+        return false;
+      }
+    }
+    return true;
+  }
+
   void moveToCameraPoseCallback(
     const std::shared_ptr<std_srvs::srv::Trigger::Request>,
     std::shared_ptr<std_srvs::srv::Trigger::Response> response)
@@ -146,6 +307,9 @@ private:
     response->message = success ? "Moved to camera pose" : "Failed to move to camera pose";
 
     RCLCPP_INFO(this->get_logger(), "Move to camera pose: %s", response->message.c_str());
+    if (success) {
+      logJointAngles("camera_pose");
+    }
   }
 
   void openGripperCallback(
@@ -213,6 +377,9 @@ private:
     move_group_arm_->setStartStateToCurrentState();
     move_group_arm_->setPoseTarget(target_pose_.pose);
 
+    // No path constraints - let MoveIt find the best solution
+    // Trajectory validation in executeCartesianCallback catches major arm flips
+
     bool success = (move_group_arm_->move() == moveit::core::MoveItErrorCode::SUCCESS);
 
     response->success = success;
@@ -220,6 +387,9 @@ private:
     target_pose_received_ = false;
 
     RCLCPP_INFO(this->get_logger(), "Execute pose: %s", response->message.c_str());
+    if (success) {
+      logJointAngles("execute_pose");
+    }
   }
 
   void executeCartesianCallback(
@@ -249,23 +419,39 @@ private:
       waypoints, eef_step, jump_threshold, trajectory);
 
     bool success = false;
-    if (fraction >= 0.9) {
+    std::string failure_reason;
+
+    if (fraction < 0.9) {
+      failure_reason = "insufficient fraction: " + std::to_string(fraction);
+    } else if (!validateTrajectory(trajectory)) {
+      // Trajectory has invalid arm configuration (gripper pointing up)
+      failure_reason = "invalid arm configuration (gripper facing upward)";
+      RCLCPP_WARN(this->get_logger(),
+        "Cartesian path rejected: arm would flip to upward-facing configuration");
+    } else {
       auto exec_result = move_group_arm_->execute(trajectory);
       success = (exec_result == moveit::core::MoveItErrorCode::SUCCESS);
+      if (!success) {
+        failure_reason = "execution failed";
+      }
     }
 
     response->success = success;
     response->message = success ?
       "Cartesian path executed" :
-      "Failed to execute cartesian path (fraction: " + std::to_string(fraction) + ")";
+      "Failed to execute cartesian path (" + failure_reason + ")";
     target_pose_received_ = false;
 
     RCLCPP_INFO(this->get_logger(), "Execute cartesian: %s", response->message.c_str());
+    if (success) {
+      logJointAngles("execute_cartesian");
+    }
   }
 
   std::shared_ptr<MoveGroupInterface> move_group_arm_;
   std::shared_ptr<MoveGroupInterface> move_group_gripper_;
 
+  std::vector<std::string> joint_names_;
   std::vector<double> camera_pose_joints_;
   double gripper_open_;
   double gripper_close_;

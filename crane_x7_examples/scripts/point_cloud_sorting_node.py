@@ -399,8 +399,11 @@ def main():
     except KeyboardInterrupt:
         pass
     finally:
+        node.get_logger().info("Shutting down...")
+        executor.shutdown()
         node.destroy_node()
         rclpy.shutdown()
+        print("[point_cloud_sorting] Shutdown complete")
 
 
 if __name__ == "__main__":
