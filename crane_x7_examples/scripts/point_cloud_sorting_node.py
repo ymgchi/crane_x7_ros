@@ -310,9 +310,9 @@ class PointCloudSortingNode(Node):
         """Check if position is within work area."""
         x, y, z = pos
         return (
-            self.WORK_AREA_X[0] < x < self.WORK_AREA_X[1] and
-            self.WORK_AREA_Y[0] < y < self.WORK_AREA_Y[1] and
-            self.WORK_AREA_Z[0] < z < self.WORK_AREA_Z[1]
+            self.WORK_AREA_X[0] < x < self.WORK_AREA_X[1]
+            and self.WORK_AREA_Y[0] < y < self.WORK_AREA_Y[1]
+            and self.WORK_AREA_Z[0] < z < self.WORK_AREA_Z[1]
         )
 
     def _is_duplicate(self, pos: tuple, seen: List[tuple], threshold: float = 0.04) -> bool:

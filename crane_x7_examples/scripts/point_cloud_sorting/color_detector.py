@@ -162,9 +162,9 @@ class ColorDetector:
     def is_ready(self) -> bool:
         """Check if detector has received all required data."""
         return (
-            self._latest_image is not None and
-            self._latest_depth is not None and
-            self._camera_info is not None
+            self._latest_image is not None
+            and self._latest_depth is not None
+            and self._camera_info is not None
         )
 
     def detect(self) -> List[DetectionResult]:
