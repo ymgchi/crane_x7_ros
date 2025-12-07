@@ -67,16 +67,19 @@ bool spawnObjectInGazebo(double x, double y, double z)
   // 青色（テーブルの茶色と区別しやすい）
   std::string rgba = "0.2 0.4 0.8 1";
 
-  snprintf(cmd, sizeof(cmd),
+  snprintf(
+    cmd, sizeof(cmd),
     "ros2 run ros_gz_sim create -world default -name '%s' "
     "-x %f -y %f -z %f "
     "-string '<sdf version=\"1.6\"><model name=\"%s\">"
     "<static>false</static>"
     "<link name=\"link\">"
     "<inertial><mass>0.5</mass>"
-    "<inertia><ixx>0.0002</ixx><iyy>0.0002</iyy><izz>0.0002</izz><ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia>"
+    "<inertia><ixx>0.0002</ixx><iyy>0.0002</iyy><izz>0.0002</izz>"
+    "<ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia>"
     "</inertial>"
-    "<collision name=\"collision\"><geometry><box><size>0.05 0.05 0.05</size></box></geometry></collision>"
+    "<collision name=\"collision\"><geometry><box><size>0.05 0.05 0.05</size></box></geometry>"
+    "</collision>"
     "<visual name=\"visual\"><geometry><box><size>0.05 0.05 0.05</size></box></geometry>"
     "<material><ambient>%s</ambient><diffuse>%s</diffuse></material>"
     "</visual></link></model></sdf>'",
@@ -112,8 +115,9 @@ bool executeCartesianPath(
     waypoints, eef_step, jump_threshold, trajectory);
 
   if (fraction < min_fraction) {
-    RCLCPP_WARN(LOGGER, "Cartesian path planning failed (%.2f%% achieved, need %.0f%%)",
-                fraction * 100.0, min_fraction * 100.0);
+    RCLCPP_WARN(
+      LOGGER, "Cartesian path planning failed (%.2f%% achieved, need %.0f%%)",
+      fraction * 100.0, min_fraction * 100.0);
     return false;
   }
 
@@ -181,8 +185,9 @@ private:
   {
     latest_pose_ = *msg;
     has_new_pose_ = true;
-    RCLCPP_INFO(this->get_logger(), "Received grasp pose at (%.3f, %.3f, %.3f)",
-                msg->pose.position.x, msg->pose.position.y, msg->pose.position.z);
+    RCLCPP_INFO(
+      this->get_logger(), "Received grasp pose at (%.3f, %.3f, %.3f)",
+      msg->pose.position.x, msg->pose.position.y, msg->pose.position.z);
   }
 
   void table_height_callback(const std_msgs::msg::Float32::SharedPtr msg)
@@ -199,7 +204,8 @@ int main(int argc, char ** argv)
   rclcpp::NodeOptions node_options;
   node_options.automatically_declare_parameters_from_overrides(true);
   node_options.allow_undeclared_parameters(true);
-  node_options.parameter_overrides({
+  node_options.parameter_overrides(
+  {
     {"use_sim_time", true}
   });
 
@@ -243,7 +249,7 @@ int main(int argc, char ** argv)
     angles::from_degrees(0.0),    // base yaw
     angles::from_degrees(40.0),   // shoulder pitch
     angles::from_degrees(0.0),    // shoulder roll (水平に近づける)
-    angles::from_degrees(-100.0), // elbow pitch
+    angles::from_degrees(-100.0),  // elbow pitch
     angles::from_degrees(0.0),    // wrist roll
     angles::from_degrees(-80.0),  // wrist pitch
     angles::from_degrees(90.0)    // wrist yaw
@@ -282,8 +288,8 @@ int main(int argc, char ** argv)
   RCLCPP_INFO(LOGGER, "Spawning wood cubes");
   std::vector<geometry_msgs::msg::Point> spawn_positions = {
     // ロボット正面に落下させ、カメラ視野とワークスペース内に収める
-    [](){geometry_msgs::msg::Point p; p.x = 0.30; p.y = 0.00; p.z = 1.05; return p;}(),
-    [](){geometry_msgs::msg::Point p; p.x = 0.32; p.y = 0.12; p.z = 1.05; return p;}()
+    []() {geometry_msgs::msg::Point p; p.x = 0.30; p.y = 0.00; p.z = 1.05; return p;}(),
+    []() {geometry_msgs::msg::Point p; p.x = 0.32; p.y = 0.12; p.z = 1.05; return p;}()
   };
 
   // ロボットはGazebo世界のZ=1.015m（テーブル上）に設置されている
@@ -293,8 +299,9 @@ int main(int argc, char ** argv)
     const auto & pos = spawn_positions[i];
     // World frame -> base_link frame (Z offset by robot height)
     double expected_base_z = pos.z - ROBOT_TABLE_HEIGHT;
-    RCLCPP_INFO(LOGGER, "Cube %zu: World(%.2f, %.2f, %.2f) -> Expected base_link(%.2f, %.2f, %.3f)",
-                i, pos.x, pos.y, pos.z, pos.x, pos.y, expected_base_z);
+    RCLCPP_INFO(
+      LOGGER, "Cube %zu: World(%.2f, %.2f, %.2f) -> Expected base_link(%.2f, %.2f, %.3f)",
+      i, pos.x, pos.y, pos.z, pos.x, pos.y, expected_base_z);
   }
   RCLCPP_INFO(LOGGER, "======================================");
 
@@ -314,17 +321,23 @@ int main(int argc, char ** argv)
   // メインループ: 把持ポーズを待って実行
   int pick_count = 0;
   const int MAX_PICKS = 5;
-  const double PICK_Z_OFFSET = -0.02;  // 把持位置のオフセット（物体より少し下）
-  const double APPROACH_CLEARANCE = 0.03;    // 把持位置からの上方向クリアランス
-  const double MIN_APPROACH_Z = 0.20;        // 最小アプローチ高さ（color_sortingのPICK_Z_ABOVEに合わせる）
-  const double PICK_Z_LIFT = 0.25;     // 持ち上げ高さ
+  // 把持位置のオフセット（物体より少し下）
+  const double PICK_Z_OFFSET = -0.02;
+  // 把持位置からの上方向クリアランス
+  const double APPROACH_CLEARANCE = 0.03;
+  // 最小アプローチ高さ（PICK_Z_ABOVEに合わせる）
+  const double MIN_APPROACH_Z = 0.20;
+  // 持ち上げ高さ
+  const double PICK_Z_LIFT = 0.25;
   // WORKAROUND: In Gazebo simulation, point cloud Z values are in world-like coordinates
   // Robot base_link is at world Z ~1.015m, table surface at ~1.015m
   // Cube top is at world Z ~1.05m (table 1.015 + cube height 0.035)
   const double DEFAULT_MIN_VALID_Z = 0.90;  // Below table surface (world Z)
   const double DEFAULT_MAX_VALID_Z = 1.20;  // Maximum height above table (world Z)
-  const double MIN_TABLE_DELTA = -0.05;  // テーブルからの最小オフセット（下に5cmまで許容）
-  const double MAX_TABLE_DELTA = 0.20;    // テーブル上から最大20cmまで
+  // テーブルからの最小オフセット（下に5cmまで許容）
+  const double MIN_TABLE_DELTA = -0.05;
+  // テーブル上から最大20cmまで
+  const double MAX_TABLE_DELTA = 0.20;
   // XY座標のワークスペース範囲（base_link基準）- キューブ検出用に調整
   const double MIN_VALID_X = 0.20;     // ロボット近すぎると衝突の恐れ
   const double MAX_VALID_X = 0.40;     // キューブがある範囲に絞る
@@ -342,20 +355,22 @@ int main(int argc, char ** argv)
 
     auto grasp_pose_stamped = grasp_pose_listener->getLatestPose();
 
-    RCLCPP_INFO(LOGGER, "Received grasp pose in frame '%s' at (%.3f, %.3f, %.3f)",
-                grasp_pose_stamped.header.frame_id.c_str(),
-                grasp_pose_stamped.pose.position.x,
-                grasp_pose_stamped.pose.position.y,
-                grasp_pose_stamped.pose.position.z);
+    RCLCPP_INFO(
+      LOGGER, "Received grasp pose in frame '%s' at (%.3f, %.3f, %.3f)",
+      grasp_pose_stamped.header.frame_id.c_str(),
+      grasp_pose_stamped.pose.position.x,
+      grasp_pose_stamped.pose.position.y,
+      grasp_pose_stamped.pose.position.z);
 
     // Check frame_id and handle transformation
     std::string source_frame = grasp_pose_stamped.header.frame_id;
     RCLCPP_INFO(LOGGER, "=== GRASP POSE DEBUG ===");
-    RCLCPP_INFO(LOGGER, "Received grasp pose in frame '%s' at (%.3f, %.3f, %.3f)",
-                source_frame.c_str(),
-                grasp_pose_stamped.pose.position.x,
-                grasp_pose_stamped.pose.position.y,
-                grasp_pose_stamped.pose.position.z);
+    RCLCPP_INFO(
+      LOGGER, "Received grasp pose in frame '%s' at (%.3f, %.3f, %.3f)",
+      source_frame.c_str(),
+      grasp_pose_stamped.pose.position.x,
+      grasp_pose_stamped.pose.position.y,
+      grasp_pose_stamped.pose.position.z);
 
     geometry_msgs::msg::PoseStamped grasp_pose_base_link;
 
@@ -373,13 +388,15 @@ int main(int argc, char ** argv)
 
       // Transform grasp pose from camera frame to base_link (robot base)
       try {
-        tf_buffer->transform(grasp_pose_stamped, grasp_pose_base_link, "base_link",
-                            tf2::durationFromSec(1.0));
-        RCLCPP_INFO(LOGGER, "Transformed from '%s' to base_link at (%.3f, %.3f, %.3f)",
-                    source_frame.c_str(),
-                    grasp_pose_base_link.pose.position.x,
-                    grasp_pose_base_link.pose.position.y,
-                    grasp_pose_base_link.pose.position.z);
+        tf_buffer->transform(
+          grasp_pose_stamped, grasp_pose_base_link, "base_link",
+          tf2::durationFromSec(1.0));
+        RCLCPP_INFO(
+          LOGGER, "Transformed from '%s' to base_link at (%.3f, %.3f, %.3f)",
+          source_frame.c_str(),
+          grasp_pose_base_link.pose.position.x,
+          grasp_pose_base_link.pose.position.y,
+          grasp_pose_base_link.pose.position.z);
       } catch (const tf2::TransformException & ex) {
         RCLCPP_WARN(LOGGER, "TF2 transform failed: %s", ex.what());
         continue;
@@ -388,7 +405,8 @@ int main(int argc, char ** argv)
 
     auto grasp_pose = grasp_pose_base_link.pose;
 
-    // テーブル高さを受信している場合は下限をテーブル+マージンに合わせる
+    // テーブル高さを受信している場合は
+    // 下限をテーブル+マージンに合わせる
     double min_valid_z = DEFAULT_MIN_VALID_Z;
     double max_valid_z = DEFAULT_MAX_VALID_Z;
     double dz_from_table = std::numeric_limits<double>::quiet_NaN();
@@ -400,7 +418,8 @@ int main(int argc, char ** argv)
       static bool table_logged = false;
       if (!table_logged) {
         table_logged = true;
-        RCLCPP_INFO(LOGGER,
+        RCLCPP_INFO(
+          LOGGER,
           "Using table-relative Z window: [%.3f, %.3f] (table=%.3f, delta [%.3f, %.3f])",
           min_valid_z, max_valid_z, table_h, MIN_TABLE_DELTA, MAX_TABLE_DELTA);
       }
@@ -408,31 +427,36 @@ int main(int argc, char ** argv)
 
     // Validate XYZ coordinates are within robot workspace
     RCLCPP_INFO(LOGGER, "=== WORKSPACE VALIDATION ===");
-    RCLCPP_INFO(LOGGER, "Grasp position: (%.3f, %.3f, %.3f)",
-                grasp_pose.position.x, grasp_pose.position.y, grasp_pose.position.z);
+    RCLCPP_INFO(
+      LOGGER, "Grasp position: (%.3f, %.3f, %.3f)",
+      grasp_pose.position.x, grasp_pose.position.y, grasp_pose.position.z);
     RCLCPP_INFO(LOGGER, "Valid X range: [%.3f, %.3f]", MIN_VALID_X, MAX_VALID_X);
     RCLCPP_INFO(LOGGER, "Valid Y range: [%.3f, %.3f]", MIN_VALID_Y, MAX_VALID_Y);
     RCLCPP_INFO(LOGGER, "Valid Z range: [%.3f, %.3f]", min_valid_z, max_valid_z);
 
     if (grasp_pose.position.x < MIN_VALID_X || grasp_pose.position.x > MAX_VALID_X) {
-      RCLCPP_WARN(LOGGER, "REJECTED: X=%.3f out of range [%.2f, %.2f]",
-                  grasp_pose.position.x, MIN_VALID_X, MAX_VALID_X);
+      RCLCPP_WARN(
+        LOGGER, "REJECTED: X=%.3f out of range [%.2f, %.2f]",
+        grasp_pose.position.x, MIN_VALID_X, MAX_VALID_X);
       continue;
     }
     if (grasp_pose.position.y < MIN_VALID_Y || grasp_pose.position.y > MAX_VALID_Y) {
-      RCLCPP_WARN(LOGGER, "REJECTED: Y=%.3f out of range [%.2f, %.2f]",
-                  grasp_pose.position.y, MIN_VALID_Y, MAX_VALID_Y);
+      RCLCPP_WARN(
+        LOGGER, "REJECTED: Y=%.3f out of range [%.2f, %.2f]",
+        grasp_pose.position.y, MIN_VALID_Y, MAX_VALID_Y);
       continue;
     }
     if (grasp_pose.position.z < min_valid_z || grasp_pose.position.z > max_valid_z) {
       if (std::isfinite(dz_from_table)) {
-        RCLCPP_WARN(LOGGER,
+        RCLCPP_WARN(
+          LOGGER,
           "REJECTED: Z=%.3f out of range (table=%.3f, delta=%.3f, allowed=[%.3f, %.3f])",
           grasp_pose.position.z, grasp_pose_listener->getTableHeight(), dz_from_table,
           MIN_TABLE_DELTA, MAX_TABLE_DELTA);
       } else {
-        RCLCPP_WARN(LOGGER, "REJECTED: Z=%.3f out of range [%.2f, %.2f]",
-                    grasp_pose.position.z, min_valid_z, max_valid_z);
+        RCLCPP_WARN(
+          LOGGER, "REJECTED: Z=%.3f out of range [%.2f, %.2f]",
+          grasp_pose.position.z, min_valid_z, max_valid_z);
       }
       continue;
     }
@@ -451,35 +475,44 @@ int main(int argc, char ** argv)
     grasp_pose.orientation.z = q.z();
     grasp_pose.orientation.w = q.w();
 
-    RCLCPP_INFO(LOGGER, "✓ Valid grasp pose %d/%d at (%.3f, %.3f, %.3f)",
-                pick_count + 1, MAX_PICKS,
-                grasp_pose.position.x, grasp_pose.position.y, grasp_pose.position.z);
+    RCLCPP_INFO(
+      LOGGER, "✓ Valid grasp pose %d/%d at (%.3f, %.3f, %.3f)",
+      pick_count + 1, MAX_PICKS,
+      grasp_pose.position.x, grasp_pose.position.y, grasp_pose.position.z);
 
     // DEBUG: 期待されるキューブ位置との比較
     // Cube 0: (0.30, 0.00, 0.035), Cube 1: (0.32, 0.12, 0.035)
     double dist_cube0 = std::sqrt(
-        std::pow(grasp_pose.position.x - 0.30, 2) +
-        std::pow(grasp_pose.position.y - 0.00, 2));
+      std::pow(grasp_pose.position.x - 0.30, 2) +
+      std::pow(grasp_pose.position.y - 0.00, 2));
     double dist_cube1 = std::sqrt(
-        std::pow(grasp_pose.position.x - 0.32, 2) +
-        std::pow(grasp_pose.position.y - 0.12, 2));
-    RCLCPP_INFO(LOGGER, "DEBUG: Distance to expected cube0(0.30,0.00): %.3fm, cube1(0.32,0.12): %.3fm",
-                dist_cube0, dist_cube1);
+      std::pow(grasp_pose.position.x - 0.32, 2) +
+      std::pow(grasp_pose.position.y - 0.12, 2));
+    RCLCPP_INFO(
+      LOGGER,
+      "DEBUG: Distance to cube0(0.30,0.00): %.3fm, cube1(0.32,0.12): %.3fm",
+      dist_cube0, dist_cube1);
     if (dist_cube0 < 0.05) {
       RCLCPP_INFO(LOGGER, "DEBUG: Likely detecting CUBE 0");
     } else if (dist_cube1 < 0.05) {
       RCLCPP_INFO(LOGGER, "DEBUG: Likely detecting CUBE 1");
     } else {
-      RCLCPP_WARN(LOGGER, "DEBUG: Detection is FAR from expected cube positions! Possible misdetection.");
+      RCLCPP_WARN(
+        LOGGER,
+        "DEBUG: Detection is FAR from expected cube positions!");
     }
 
     // アプローチポーズ（上空、絶対高さで設定）
     geometry_msgs::msg::Pose approach_pose = grasp_pose;
     // Keep approach close to grasp height but ensure minimum reachable height
-    approach_pose.position.z = std::max(MIN_APPROACH_Z, std::min(DEFAULT_MAX_VALID_Z, grasp_pose.position.z + APPROACH_CLEARANCE));
+    double target_z = grasp_pose.position.z + APPROACH_CLEARANCE;
+    approach_pose.position.z = std::max(
+      MIN_APPROACH_Z,
+      std::min(DEFAULT_MAX_VALID_Z, target_z));
 
-    RCLCPP_INFO(LOGGER, "Approach pose: (%.3f, %.3f, %.3f)",
-                approach_pose.position.x, approach_pose.position.y, approach_pose.position.z);
+    RCLCPP_INFO(
+      LOGGER, "Approach pose: (%.3f, %.3f, %.3f)",
+      approach_pose.position.x, approach_pose.position.y, approach_pose.position.z);
 
     // 把持ポーズ（検出位置 + オフセット）
     geometry_msgs::msg::Pose pick_pose = grasp_pose;
@@ -487,8 +520,9 @@ int main(int argc, char ** argv)
 
     // === STEP 1: APPROACH ===
     RCLCPP_INFO(LOGGER, "=== STEP 1: APPROACH ===");
-    RCLCPP_INFO(LOGGER, "Target approach pose: (%.3f, %.3f, %.3f)",
-                approach_pose.position.x, approach_pose.position.y, approach_pose.position.z);
+    RCLCPP_INFO(
+      LOGGER, "Target approach pose: (%.3f, %.3f, %.3f)",
+      approach_pose.position.x, approach_pose.position.y, approach_pose.position.z);
     move_group_arm.setStartStateToCurrentState();
     move_group_arm.setPoseTarget(approach_pose);
     move_group_arm.setPlanningTime(20.0);
@@ -501,8 +535,9 @@ int main(int argc, char ** argv)
 
     // === STEP 2: DESCEND ===
     RCLCPP_INFO(LOGGER, "=== STEP 2: DESCEND ===");
-    RCLCPP_INFO(LOGGER, "Target pick pose: (%.3f, %.3f, %.3f)",
-                pick_pose.position.x, pick_pose.position.y, pick_pose.position.z);
+    RCLCPP_INFO(
+      LOGGER, "Target pick pose: (%.3f, %.3f, %.3f)",
+      pick_pose.position.x, pick_pose.position.y, pick_pose.position.z);
     move_group_arm.setStartStateToCurrentState();
     move_group_arm.setPoseTarget(pick_pose);
     move_group_arm.setPlanningTime(20.0);
@@ -526,8 +561,9 @@ int main(int argc, char ** argv)
     RCLCPP_INFO(LOGGER, "=== STEP 4: LIFT ===");
     geometry_msgs::msg::Pose lift_pose = pick_pose;
     lift_pose.position.z = PICK_Z_LIFT;
-    RCLCPP_INFO(LOGGER, "Target lift pose: (%.3f, %.3f, %.3f)",
-                lift_pose.position.x, lift_pose.position.y, lift_pose.position.z);
+    RCLCPP_INFO(
+      LOGGER, "Target lift pose: (%.3f, %.3f, %.3f)",
+      lift_pose.position.x, lift_pose.position.y, lift_pose.position.z);
     move_group_arm.setStartStateToCurrentState();
     move_group_arm.setPoseTarget(lift_pose);
     move_group_arm.setPlanningTime(20.0);

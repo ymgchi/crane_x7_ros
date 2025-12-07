@@ -81,28 +81,33 @@ public:
     // Create services
     move_to_camera_srv_ = this->create_service<std_srvs::srv::Trigger>(
       "/motion/move_to_camera_pose",
-      std::bind(&MotionServiceNode::moveToCameraPoseCallback, this,
-                std::placeholders::_1, std::placeholders::_2));
+      std::bind(
+        &MotionServiceNode::moveToCameraPoseCallback, this,
+        std::placeholders::_1, std::placeholders::_2));
 
     open_gripper_srv_ = this->create_service<std_srvs::srv::Trigger>(
       "/motion/open_gripper",
-      std::bind(&MotionServiceNode::openGripperCallback, this,
-                std::placeholders::_1, std::placeholders::_2));
+      std::bind(
+        &MotionServiceNode::openGripperCallback, this,
+        std::placeholders::_1, std::placeholders::_2));
 
     close_gripper_srv_ = this->create_service<std_srvs::srv::Trigger>(
       "/motion/close_gripper",
-      std::bind(&MotionServiceNode::closeGripperCallback, this,
-                std::placeholders::_1, std::placeholders::_2));
+      std::bind(
+        &MotionServiceNode::closeGripperCallback, this,
+        std::placeholders::_1, std::placeholders::_2));
 
     execute_pose_srv_ = this->create_service<std_srvs::srv::Trigger>(
       "/motion/execute_pose",
-      std::bind(&MotionServiceNode::executePoseCallback, this,
-                std::placeholders::_1, std::placeholders::_2));
+      std::bind(
+        &MotionServiceNode::executePoseCallback, this,
+        std::placeholders::_1, std::placeholders::_2));
 
     execute_cartesian_srv_ = this->create_service<std_srvs::srv::Trigger>(
       "/motion/execute_cartesian",
-      std::bind(&MotionServiceNode::executeCartesianCallback, this,
-                std::placeholders::_1, std::placeholders::_2));
+      std::bind(
+        &MotionServiceNode::executeCartesianCallback, this,
+        std::placeholders::_1, std::placeholders::_2));
 
     // Target pose subscriber (set target before calling execute_pose)
     target_pose_sub_ = this->create_subscription<geometry_msgs::msg::PoseStamped>(
@@ -123,7 +128,8 @@ private:
   {
     auto joint_values = move_group_arm_->getCurrentJointValues();
     if (joint_values.size() >= 7) {
-      RCLCPP_INFO(this->get_logger(),
+      RCLCPP_INFO(
+        this->get_logger(),
         "[%s] Joint angles (deg): J1=%.1f, J2=%.1f, J3=%.1f, J4=%.1f, J5=%.1f, J6=%.1f, J7=%.1f",
         action_name.c_str(),
         angles::to_degrees(joint_values[0]),
@@ -161,7 +167,8 @@ private:
       j5_constraint.weight = 1.0;
       constraints.joint_constraints.push_back(j5_constraint);
 
-      RCLCPP_DEBUG(this->get_logger(),
+      RCLCPP_DEBUG(
+        this->get_logger(),
         "J5 constraint: current=%.1f°, target_range=[%.1f°, %.1f°]",
         angles::to_degrees(joint_values[4]),
         angles::to_degrees(J5_SAFE_CENTER - J5_SAFE_HALF_RANGE),
@@ -183,7 +190,8 @@ private:
       j6_constraint.weight = 1.0;
       constraints.joint_constraints.push_back(j6_constraint);
 
-      RCLCPP_DEBUG(this->get_logger(),
+      RCLCPP_DEBUG(
+        this->get_logger(),
         "J6 constraint: current=%.1f°, target_range=[%.1f°, %.1f°]",
         angles::to_degrees(joint_values[5]),
         angles::to_degrees(J6_SAFE_CENTER - J6_SAFE_HALF_RANGE),
@@ -204,21 +212,23 @@ private:
       j7_constraint.weight = 1.0;
       constraints.joint_constraints.push_back(j7_constraint);
 
-      RCLCPP_DEBUG(this->get_logger(),
+      RCLCPP_DEBUG(
+        this->get_logger(),
         "J7 constraint: current=%.1f°, target_range=[%.1f°, %.1f°]",
         angles::to_degrees(joint_values[6]),
         angles::to_degrees(J7_SAFE_CENTER - J7_SAFE_HALF_RANGE),
         angles::to_degrees(J7_SAFE_CENTER + J7_SAFE_HALF_RANGE));
     }
 
-    RCLCPP_INFO(this->get_logger(),
+    RCLCPP_INFO(
+      this->get_logger(),
       "Arm constraints applied: J5=[%.1f°,%.1f°], J6=[%.1f°,%.1f°], J7=[%.1f°,%.1f°]",
       -90.0, 90.0, -135.0, 45.0, -45.0, 135.0);
 
     return constraints;
   }
 
-  bool isArmConfigurationValid(const std::vector<double>& joint_values)
+  bool isArmConfigurationValid(const std::vector<double> & joint_values)
   {
     // Check if arm configuration keeps gripper pointing downward
     // Only validate J5 strictly - it's the main indicator of arm flip
@@ -235,32 +245,36 @@ private:
     // J5 is the critical check - only reject if way out of range
     // Relaxed range: [-120°, 120°] to allow more flexibility
     if (j5_deg < -120.0 || j5_deg > 120.0) {
-      RCLCPP_WARN(this->get_logger(),
+      RCLCPP_WARN(
+        this->get_logger(),
         "J5 out of safe range: %.1f° (expected [-120°, 120°])", j5_deg);
       return false;
     }
 
     // J6 and J7 - just log warnings, don't reject
     if (j6_deg < -180.0 || j6_deg > 120.0) {
-      RCLCPP_DEBUG(this->get_logger(),
+      RCLCPP_DEBUG(
+        this->get_logger(),
         "J6 note: %.1f° (typical range [-180°, 120°])", j6_deg);
     }
 
     if (j7_deg < -180.0 || j7_deg > 180.0) {
-      RCLCPP_DEBUG(this->get_logger(),
+      RCLCPP_DEBUG(
+        this->get_logger(),
         "J7 note: %.1f° (typical range [-180°, 180°])", j7_deg);
     }
 
     return true;
   }
 
-  bool validateTrajectory(const moveit_msgs::msg::RobotTrajectory& trajectory)
+  bool validateTrajectory(const moveit_msgs::msg::RobotTrajectory & trajectory)
   {
     // Check if any point in the trajectory has invalid arm configuration
     for (size_t i = 0; i < trajectory.joint_trajectory.points.size(); ++i) {
-      const auto& point = trajectory.joint_trajectory.points[i];
+      const auto & point = trajectory.joint_trajectory.points[i];
       if (!isArmConfigurationValid(point.positions)) {
-        RCLCPP_WARN(this->get_logger(),
+        RCLCPP_WARN(
+          this->get_logger(),
           "Trajectory point %zu has invalid arm configuration", i);
         return false;
       }
@@ -354,8 +368,9 @@ private:
   {
     target_pose_ = *msg;
     target_pose_received_ = true;
-    RCLCPP_DEBUG(this->get_logger(), "Target pose received: (%.3f, %.3f, %.3f)",
-                 msg->pose.position.x, msg->pose.position.y, msg->pose.position.z);
+    RCLCPP_DEBUG(
+      this->get_logger(), "Target pose received: (%.3f, %.3f, %.3f)",
+      msg->pose.position.x, msg->pose.position.y, msg->pose.position.z);
   }
 
   void executePoseCallback(
@@ -369,10 +384,11 @@ private:
       return;
     }
 
-    RCLCPP_INFO(this->get_logger(), "Executing pose: (%.3f, %.3f, %.3f)",
-                target_pose_.pose.position.x,
-                target_pose_.pose.position.y,
-                target_pose_.pose.position.z);
+    RCLCPP_INFO(
+      this->get_logger(), "Executing pose: (%.3f, %.3f, %.3f)",
+      target_pose_.pose.position.x,
+      target_pose_.pose.position.y,
+      target_pose_.pose.position.z);
 
     move_group_arm_->setStartStateToCurrentState();
     move_group_arm_->setPoseTarget(target_pose_.pose);
@@ -403,10 +419,11 @@ private:
       return;
     }
 
-    RCLCPP_INFO(this->get_logger(), "Executing cartesian path to: (%.3f, %.3f, %.3f)",
-                target_pose_.pose.position.x,
-                target_pose_.pose.position.y,
-                target_pose_.pose.position.z);
+    RCLCPP_INFO(
+      this->get_logger(), "Executing cartesian path to: (%.3f, %.3f, %.3f)",
+      target_pose_.pose.position.x,
+      target_pose_.pose.position.y,
+      target_pose_.pose.position.z);
 
     std::vector<geometry_msgs::msg::Pose> waypoints;
     waypoints.push_back(target_pose_.pose);
@@ -426,7 +443,8 @@ private:
     } else if (!validateTrajectory(trajectory)) {
       // Trajectory has invalid arm configuration (gripper pointing up)
       failure_reason = "invalid arm configuration (gripper facing upward)";
-      RCLCPP_WARN(this->get_logger(),
+      RCLCPP_WARN(
+        this->get_logger(),
         "Cartesian path rejected: arm would flip to upward-facing configuration");
     } else {
       auto exec_result = move_group_arm_->execute(trajectory);
@@ -486,8 +504,8 @@ int main(int argc, char ** argv)
 
   // Spin in background for MoveGroupInterface initialization
   std::thread executor_thread([&executor]() {
-    executor.spin();
-  });
+      executor.spin();
+    });
 
   // Create MoveGroupInterfaces
   RCLCPP_INFO(arm_node->get_logger(), "Creating MoveGroupInterface for arm...");

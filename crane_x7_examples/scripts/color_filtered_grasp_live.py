@@ -42,7 +42,7 @@ from std_msgs.msg import Header
 
 # TF2 imports
 from tf2_ros import Buffer, TransformListener, TransformException
-import tf2_geometry_msgs  # for PoseStamped transform registration
+import tf2_geometry_msgs  # noqa: F401 (required for PoseStamped transform)
 
 
 @dataclass
@@ -229,8 +229,12 @@ class ColorFilteredGraspLive(Node):
 
         # パラメータ取得
         topic = self.get_parameter("input_topic").get_parameter_value().string_value
-        self.cfg.output_frame = self.get_parameter("output_frame").get_parameter_value().string_value
-        self.cfg.transform_cloud = self.get_parameter("transform_cloud").get_parameter_value().bool_value
+        self.cfg.output_frame = (
+            self.get_parameter("output_frame").get_parameter_value().string_value
+        )
+        self.cfg.transform_cloud = (
+            self.get_parameter("transform_cloud").get_parameter_value().bool_value
+        )
         self.cfg.process_period = self.get_parameter("process_period").value
         box_color = self.get_parameter("box_color").value
         self.preproc.exclusion_color = np.array(box_color)
@@ -267,23 +271,24 @@ class ColorFilteredGraspLive(Node):
         self.pose_pub = self.create_publisher(PoseStamped, "color_filtered_grasp/target_pose", 10)
         self.edge_pub = self.create_publisher(PointCloud2, "color_filtered_grasp/edges", 10)
 
-        self.get_logger().info(f"=== Color Filtered Grasp Live ===")
+        self.get_logger().info("=== Color Filtered Grasp Live ===")
         self.get_logger().info(f"Input topic: {topic}")
         self.get_logger().info(f"Output frame: {self.cfg.output_frame}")
         self.get_logger().info(f"Transform cloud: {self.cfg.transform_cloud}")
         self.get_logger().info(f"Workspace X: {self.cfg.pass_x}")
         self.get_logger().info(f"Workspace Y: {self.cfg.pass_y}")
         self.get_logger().info(f"Workspace Z: {self.cfg.pass_z}")
-        self.get_logger().info(f"=================================")
+        self.get_logger().info("=================================")
 
     def _get_source_frame(self, frame_id: str) -> str:
-        """Gazebo-prefixed camera frames を正規化"""
+        """Normalize Gazebo-prefixed camera frames."""
         # Gazeboは crane_x7/.../camera_depth のようなprefixed frame_idを使用
         # TFツリーに存在するフレーム名に変換
 
         # optical frame はそのまま使用（camera_depth_optical_frame等）
         if "optical_frame" in frame_id:
-            # Gazebo prefix を除去 (例: crane_x7/camera/camera_depth_optical_frame -> camera_depth_optical_frame)
+            # Gazebo prefix を除去
+            # 例: crane_x7/camera/camera_depth_optical_frame -> camera_depth_optical_frame
             if "/" in frame_id:
                 return frame_id.split("/")[-1]
             return frame_id
@@ -295,7 +300,7 @@ class ColorFilteredGraspLive(Node):
         return frame_id
 
     def _transform_to_matrix(self, transform) -> np.ndarray:
-        """TransformStampedから4x4変換行列を作成"""
+        """Create 4x4 transformation matrix from TransformStamped."""
         t = transform.transform.translation
         r = transform.transform.rotation
 
@@ -314,7 +319,7 @@ class ColorFilteredGraspLive(Node):
         return matrix
 
     def _transform_pointcloud(self, msg: PointCloud2) -> Optional[PointCloud2]:
-        """点群をoutput_frame（base_link）に変換（手動実装）"""
+        """Transform point cloud to output_frame (base_link)."""
         source_frame = self._get_source_frame(msg.header.frame_id)
         target_frame = self.cfg.output_frame
 
@@ -437,7 +442,9 @@ class ColorFilteredGraspLive(Node):
 
         if self.cfg.voxel_size > 0:
             pcd = pcd.voxel_down_sample(self.cfg.voxel_size)
-            self.get_logger().info(f"[{working_frame}] After voxel downsampling: {len(pcd.points)}")
+            self.get_logger().info(
+                f"[{working_frame}] After voxel downsampling: {len(pcd.points)}"
+            )
 
         filtered = self.preproc.apply(pcd)
         self.get_logger().info(f"[{working_frame}] After color filtering: {len(filtered.points)}")

@@ -36,24 +36,21 @@ from dataclasses import dataclass
 from typing import List, Optional
 
 import rclpy
-from rclpy.node import Node
 from rclpy.executors import MultiThreadedExecutor
-from rclpy.callback_groups import ReentrantCallbackGroup
+from rclpy.node import Node
 
 from point_cloud_sorting import (
-    ColorDetector,
     Color,
-    DetectionResult,
+    ColorDetector,
     EdgeGraspFinder,
-    GraspTarget,
     RobotController,
-    RobotConfig,
 )
 
 
 @dataclass
 class SortingTarget:
     """Combined target from color detection and edge grasp finding."""
+
     color: Color
     color_position: tuple  # From color detector (x, y, z)
     grasp_position: Optional[tuple] = None  # From edge grasp finder
@@ -183,7 +180,9 @@ class PointCloudSortingNode(Node):
             # Phase 2: Pick and place each target
             for idx, target in enumerate(targets):
                 self.get_logger().info("")
-                self.get_logger().info(f"--- Target {idx + 1}/{len(targets)}: {target.color.name} ---")
+                self.get_logger().info(
+                    f"--- Target {idx + 1}/{len(targets)}: {target.color.name} ---"
+                )
 
                 success = self._process_target(target)
                 if success:
@@ -269,7 +268,9 @@ class PointCloudSortingNode(Node):
 
         for attempt in range(5):  # Multiple detection attempts
             detections = self._color_detector.detect()
-            self.get_logger().info(f"  Scan attempt {attempt + 1}: {len(detections)} raw detections")
+            self.get_logger().info(
+                f"  Scan attempt {attempt + 1}: {len(detections)} raw detections"
+            )
 
             for det in detections:
                 if not det.detected:
@@ -282,12 +283,12 @@ class PointCloudSortingNode(Node):
 
                 # Check work area bounds
                 if not self._in_work_area(pos):
-                    self.get_logger().debug(f"    -> Outside work area")
+                    self.get_logger().debug("    -> Outside work area")
                     continue
 
                 # Check for duplicates
                 if self._is_duplicate(pos, seen_positions):
-                    self.get_logger().debug(f"    -> Duplicate")
+                    self.get_logger().debug("    -> Duplicate")
                     continue
 
                 seen_positions.append(pos)
@@ -360,7 +361,8 @@ class PointCloudSortingNode(Node):
         else:
             pick_pos = target.color_position
             self.get_logger().info(
-                f"  Using COLOR position: ({pick_pos[0]:.3f}, {pick_pos[1]:.3f}, {pick_pos[2]:.3f})"
+                f"  Using COLOR position: "
+                f"({pick_pos[0]:.3f}, {pick_pos[1]:.3f}, {pick_pos[2]:.3f})"
             )
 
         # Step 2: Execute pick

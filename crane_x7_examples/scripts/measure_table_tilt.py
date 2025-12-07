@@ -1,19 +1,34 @@
 #!/usr/bin/env python3
+# Copyright 2025 ymgchi
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 """
 Measure table surface tilt in base_link coordinates.
+
 This script samples points from the point cloud, transforms them to base_link,
 and analyzes if the table appears tilted after TF transformation.
 """
+import struct
+
+from geometry_msgs.msg import PointStamped
+import numpy as np
 import rclpy
 from rclpy.node import Node
-from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
 from rclpy.parameter import Parameter
+from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import PointCloud2
-import struct
-import numpy as np
 from tf2_ros import Buffer, TransformListener
-from geometry_msgs.msg import PointStamped
-import tf2_geometry_msgs
+import tf2_geometry_msgs  # noqa: F401 (required for PointStamped transform)
 
 
 class TableTiltMeasurer(Node):
@@ -105,7 +120,7 @@ class TableTiltMeasurer(Node):
 
     def print_results(self, results, sample_num):
         print(f"\n=== Sample {sample_num}: Table Surface Analysis ===")
-        print(f"Points transformed from camera frame to base_link:\n")
+        print("Points transformed from camera frame to base_link:\n")
         header = f"{'Img Loc':<12} {'Cam Z':<10} {'Base X':<10} {'Base Y':<10} {'Base Z':<10}"
         print(header)
         print("-" * 55)
@@ -113,7 +128,8 @@ class TableTiltMeasurer(Node):
         for r in results:
             cam_z = r["cam"][2]
             base_x, base_y, base_z = r["base"]
-            line = f"{r['img_loc']:<12} {cam_z:<10.3f} {base_x:<10.3f} {base_y:<10.3f} {base_z:<10.3f}"
+            line = (f"{r['img_loc']:<12} {cam_z:<10.3f} {base_x:<10.3f} "
+                    f"{base_y:<10.3f} {base_z:<10.3f}")
             print(line)
 
         # Analyze Z variation by X position (front to back)
@@ -157,13 +173,13 @@ class TableTiltMeasurer(Node):
         a, b, c = coeffs
 
         print(f"\nFitted plane: Z = {a:.6f}*X + {b:.6f}*Y + {c:.6f}")
-        print(f"\nInterpretation:")
+        print("\nInterpretation:")
         print(f"  - dZ/dX = {a:.6f} m/m  (tilt in X direction)")
-        print(f"    If positive: table rises toward robot (+X)")
-        print(f"    If negative: table drops toward robot (+X)")
+        print("    If positive: table rises toward robot (+X)")
+        print("    If negative: table drops toward robot (+X)")
         print(f"  - dZ/dY = {b:.6f} m/m  (tilt in Y direction)")
-        print(f"    If positive: table rises to the left (+Y)")
-        print(f"    If negative: table rises to the right (-Y)")
+        print("    If positive: table rises to the left (+Y)")
+        print("    If negative: table rises to the right (-Y)")
 
         # Calculate tilt angles
         tilt_x_deg = np.degrees(np.arctan(a))

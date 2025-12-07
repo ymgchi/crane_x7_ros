@@ -16,9 +16,7 @@
 Service-based robot controller for CRANE-X7.
 
 Communicates with the C++ motion_service_node via ROS 2 services.
-
-References:
-- motion_service_node.cpp (C++ MoveIt interface)
+See motion_service_node.cpp for the C++ MoveIt interface.
 """
 
 import math
@@ -36,6 +34,7 @@ from .color_detector import Color
 @dataclass
 class RobotConfig:
     """Robot configuration parameters."""
+
     # Pick heights (meters)
     pick_z_above: float = 0.20  # Hover height
     pick_z_lift: float = 0.30   # Lift height after grasp
@@ -70,10 +69,9 @@ class RobotController:
         """
         Initialize RobotController.
 
-        Args:
-            node: ROS 2 node
-            config: Robot configuration parameters
-            use_sim_time: Whether to use simulation time
+        :param node: ROS 2 node
+        :param config: Robot configuration parameters
+        :param use_sim_time: Whether to use simulation time
         """
         self._node = node
         self._logger = node.get_logger()
@@ -110,12 +108,9 @@ class RobotController:
         This is used instead of spin_until_future_complete because
         the executor is already spinning in a background thread.
 
-        Args:
-            future: The future to wait for
-            timeout_sec: Timeout in seconds (default: SERVICE_TIMEOUT)
-
-        Returns:
-            True if future completed, False if timed out
+        :param future: The future to wait for
+        :param timeout_sec: Timeout in seconds (default: SERVICE_TIMEOUT)
+        :returns: True if future completed, False if timed out
         """
         if timeout_sec is None:
             timeout_sec = self.SERVICE_TIMEOUT
@@ -247,12 +242,9 @@ class RobotController:
         """
         Execute pick operation at given position.
 
-        Args:
-            position: (x, y, z) in base_link frame
-            yaw_deg: Gripper rotation angle in degrees
-
-        Returns:
-            True if successful
+        :param position: (x, y, z) in base_link frame
+        :param yaw_deg: Gripper rotation angle in degrees
+        :returns: True if successful
         """
         x, y, z = position
 
@@ -306,11 +298,8 @@ class RobotController:
         """
         Place object at color-specific location.
 
-        Args:
-            color: Target color for placement location
-
-        Returns:
-            True if successful
+        :param color: Target color for placement location
+        :returns: True if successful
         """
         if color not in self._config.place_positions:
             self._logger.warn(f"No place position for color {color}")

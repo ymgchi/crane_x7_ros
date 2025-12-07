@@ -58,7 +58,7 @@ def generate_launch_description():
 
     declare_start_realsense = DeclareLaunchArgument(
         'start_realsense', default_value='false',
-        description='Start realsense2_camera driver (set true on real hardware; false in simulation)'
+        description='Start realsense2_camera driver (set true for real hardware)'
     )
 
     declare_use_sim_time = DeclareLaunchArgument(

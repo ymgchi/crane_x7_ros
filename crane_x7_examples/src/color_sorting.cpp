@@ -48,7 +48,8 @@ static const rclcpp::Logger LOGGER = rclcpp::get_logger("color_sorting");
 static const double DUPLICATE_DETECTION_THRESHOLD = 0.04;  // 4cm - 同一物体と見なす距離
 
 // 色の定義
-enum class Color {
+enum class Color
+{
   NONE,
   BLUE,
   YELLOW,
@@ -56,7 +57,8 @@ enum class Color {
 };
 
 // 検出結果
-struct DetectionResult {
+struct DetectionResult
+{
   Color color;
   geometry_msgs::msg::Pose pose;
   bool detected;
@@ -71,7 +73,8 @@ struct DetectionResult {
 };
 
 // バッチスキャンで溜めるターゲット情報
-struct TargetInfo {
+struct TargetInfo
+{
   geometry_msgs::msg::Point position;
   geometry_msgs::msg::Quaternion orientation;
   Color color;
@@ -107,9 +110,9 @@ bool spawnObjectInGazebo(double x, double y, double z, Color color)
 {
   // 色別の材質設定（ambient/diffuse）
   const std::map<Color, std::string> color_rgba = {
-    {Color::BLUE,   "0.0 0.0 1.0 1"},
+    {Color::BLUE, "0.0 0.0 1.0 1"},
     {Color::YELLOW, "1.0 1.0 0.0 1"},
-    {Color::GREEN,  "0.0 1.0 0.0 1"}
+    {Color::GREEN, "0.0 1.0 0.0 1"}
   };
   auto it = color_rgba.find(color);
   std::string rgba = (it != color_rgba.end()) ? it->second : "0.5 0.5 0.5 1";
@@ -119,16 +122,19 @@ bool spawnObjectInGazebo(double x, double y, double z, Color color)
   char name[64];
   snprintf(name, sizeof(name), "color_cube_%d", spawn_count++);
 
-  snprintf(cmd, sizeof(cmd),
+  snprintf(
+    cmd, sizeof(cmd),
     "ros2 run ros_gz_sim create -world default -name '%s' "
     "-x %f -y %f -z %f "
     "-string '<sdf version=\"1.6\"><model name=\"%s\">"
     "<static>false</static>"
     "<link name=\"link\">"
     "<inertial><mass>0.5</mass>"
-    "<inertia><ixx>0.0002</ixx><iyy>0.0002</iyy><izz>0.0002</izz><ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia>"
+    "<inertia><ixx>0.0002</ixx><iyy>0.0002</iyy><izz>0.0002</izz>"
+    "<ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia>"
     "</inertial>"
-    "<collision name=\"collision\"><geometry><box><size>0.05 0.05 0.05</size></box></geometry></collision>"
+    "<collision name=\"collision\"><geometry><box><size>0.05 0.05 0.05</size></box></geometry>"
+    "</collision>"
     "<visual name=\"visual\"><geometry><box><size>0.05 0.05 0.05</size></box></geometry>"
     "<material><ambient>%s</ambient><diffuse>%s</diffuse></material>"
     "</visual></link></model></sdf>'",
@@ -173,7 +179,8 @@ bool executeCartesianPath(
 
 
 // 色名を文字列に変換するヘルパー
-std::string colorToString(Color color) {
+std::string colorToString(Color color)
+{
   switch (color) {
     case Color::BLUE: return "BLUE";
     case Color::YELLOW: return "YELLOW";
@@ -337,8 +344,9 @@ public:
     averaged.pose.position.z /= samples.size();
     averaged.detected = true;
 
-    RCLCPP_INFO(LOGGER, "Averaged %zu/%zu samples for better accuracy (color-filtered)",
-                samples.size(), samples.size());
+    RCLCPP_INFO(
+      LOGGER, "Averaged %zu/%zu samples for better accuracy (color-filtered)",
+      samples.size(), samples.size());
 
     return averaged;
   }
@@ -367,7 +375,8 @@ private:
   std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
 
   // HSV範囲パラメータ（実行時調整可能）
-  struct HSVRange {
+  struct HSVRange
+  {
     int h_min, h_max;
     int s_min, s_max;
     int v_min, v_max;
@@ -382,34 +391,34 @@ private:
 
     // Gather candidate frame names to compensate for namespace/prefix differences
     auto build_candidate_frames = [&](const std::string & raw_frame) {
-      std::vector<std::string> frames;
-      auto add_unique = [&](const std::string & f) {
-        if (std::find(frames.begin(), frames.end(), f) == frames.end()) {
-          frames.push_back(f);
+        std::vector<std::string> frames;
+        auto add_unique = [&](const std::string & f) {
+            if (std::find(frames.begin(), frames.end(), f) == frames.end()) {
+              frames.push_back(f);
+            }
+          };
+
+        add_unique(raw_frame);
+
+        // If frame lacks optical suffix, try adding it
+        if (raw_frame.find("_optical_frame") == std::string::npos) {
+          add_unique(raw_frame + "_optical_frame");
         }
+
+        // Plain known frames
+        add_unique("camera_color_optical_frame");
+        add_unique("camera_link");  // as a fallback intermediate link
+
+        // If frame has a prefix (e.g., "crane_x7/..."), reuse it for known names
+        auto slash_pos = raw_frame.find('/');
+        if (slash_pos != std::string::npos) {
+          std::string prefix = raw_frame.substr(0, slash_pos);
+          add_unique(prefix + "/camera_color_optical_frame");
+          add_unique(prefix + "/camera_link");
+        }
+
+        return frames;
       };
-
-      add_unique(raw_frame);
-
-      // If frame lacks optical suffix, try adding it
-      if (raw_frame.find("_optical_frame") == std::string::npos) {
-        add_unique(raw_frame + "_optical_frame");
-      }
-
-      // Plain known frames
-      add_unique("camera_color_optical_frame");
-      add_unique("camera_link");  // as a fallback intermediate link
-
-      // If frame has a prefix (e.g., "crane_x7/..."), reuse it for known names
-      auto slash_pos = raw_frame.find('/');
-      if (slash_pos != std::string::npos) {
-        std::string prefix = raw_frame.substr(0, slash_pos);
-        add_unique(prefix + "/camera_color_optical_frame");
-        add_unique(prefix + "/camera_link");
-      }
-
-      return frames;
-    };
 
     auto cv_img = cv_bridge::toCvShare(msg, msg->encoding);
     cv::Mat hsv_image;
@@ -422,8 +431,8 @@ private:
     // 青、黄、緑の順で検出を試みる（パラメータ化されたHSV範囲を使用）
     std::vector<Color> colors_to_detect = {Color::BLUE, Color::YELLOW, Color::GREEN};
 
-    for (const auto& color : colors_to_detect) {
-      const auto& range = hsv_ranges_[color];
+    for (const auto & color : colors_to_detect) {
+      const auto & range = hsv_ranges_[color];
       cv::Mat img_thresholded;
       cv::inRange(
         hsv_image,
@@ -479,8 +488,9 @@ private:
         }
         // verboseモードで角度をログ出力
         if (verbose_logging_) {
-          RCLCPP_INFO(LOGGER, "  [ANGLE] minAreaRect angle: %.1f deg (size: %.1f x %.1f)",
-                      detected_angle, rotated_rect.size.width, rotated_rect.size.height);
+          RCLCPP_INFO(
+            LOGGER, "  [ANGLE] minAreaRect angle: %.1f deg (size: %.1f x %.1f)",
+            detected_angle, rotated_rect.size.width, rotated_rect.size.height);
         }
 
         // 物体検出成功
@@ -495,8 +505,10 @@ private:
         double cy_error = std::abs(camera_model.cy() - expected_cy);
         if (cx_error > 50.0 || cy_error > 50.0) {
           if (verbose_logging_) {
-            RCLCPP_WARN(LOGGER, "Invalid camera_info detected: cx=%.1f (expected %.1f), cy=%.1f (expected %.1f), skipping frame",
-                        camera_model.cx(), expected_cx, camera_model.cy(), expected_cy);
+            RCLCPP_WARN(
+              LOGGER,
+              "Bad camera_info: cx=%.1f(exp %.1f), cy=%.1f(exp %.1f), skip",
+              camera_model.cx(), expected_cx, camera_model.cy(), expected_cy);
           }
           continue;
         }
@@ -506,38 +518,38 @@ private:
         cv::Point2d point(pixel_x, pixel_y);
 
         // rectify and clamp to image bounds
-      cv::Point2d rect_point = camera_model.rectifyPoint(point);
-      cv::Point3d ray = camera_model.projectPixelTo3dRay(rect_point);
-      int px = static_cast<int>(std::round(rect_point.x));
-      int py = static_cast<int>(std::round(rect_point.y));
-      px = std::max(0, std::min(px, static_cast<int>(camera_info_->width) - 1));
-      py = std::max(0, std::min(py, static_cast<int>(camera_info_->height) - 1));
+        cv::Point2d rect_point = camera_model.rectifyPoint(point);
+        cv::Point3d ray = camera_model.projectPixelTo3dRay(rect_point);
+        int px = static_cast<int>(std::round(rect_point.x));
+        int py = static_cast<int>(std::round(rect_point.y));
+        px = std::max(0, std::min(px, static_cast<int>(camera_info_->width) - 1));
+        py = std::max(0, std::min(py, static_cast<int>(camera_info_->height) - 1));
 
         const double DEPTH_OFFSET = 0.015;
         auto cv_depth = cv_bridge::toCvShare(depth_image_, depth_image_->encoding);
         // 5x5 窓の中央値を使用して深度ノイズを低減（強化版）
         auto depth_median = [&](int cx, int cy) -> std::optional<double> {
-          std::vector<double> vals;
-          // 5x5窓に拡大してより多くのサンプルから中央値を計算
-          for (int dy = -2; dy <= 2; ++dy) {
-            for (int dx = -2; dx <= 2; ++dx) {
-              int xx = std::clamp(cx + dx, 0, static_cast<int>(camera_info_->width) - 1);
-              int yy = std::clamp(cy + dy, 0, static_cast<int>(camera_info_->height) - 1);
-              if (depth_image_->encoding == sensor_msgs::image_encodings::TYPE_16UC1) {
-                double v = cv_depth->image.at<uint16_t>(yy, xx) / 1000.0;
-                if (v > 0.0) vals.push_back(v);
-              } else if (depth_image_->encoding == sensor_msgs::image_encodings::TYPE_32FC1) {
-                float v = cv_depth->image.at<float>(yy, xx);
-                if (std::isfinite(v) && v > 0.0f) vals.push_back(static_cast<double>(v));
+            std::vector<double> vals;
+            // 5x5窓に拡大してより多くのサンプルから中央値を計算
+            for (int dy = -2; dy <= 2; ++dy) {
+              for (int dx = -2; dx <= 2; ++dx) {
+                int xx = std::clamp(cx + dx, 0, static_cast<int>(camera_info_->width) - 1);
+                int yy = std::clamp(cy + dy, 0, static_cast<int>(camera_info_->height) - 1);
+                if (depth_image_->encoding == sensor_msgs::image_encodings::TYPE_16UC1) {
+                  double v = cv_depth->image.at<uint16_t>(yy, xx) / 1000.0;
+                  if (v > 0.0) {vals.push_back(v);}
+                } else if (depth_image_->encoding == sensor_msgs::image_encodings::TYPE_32FC1) {
+                  float v = cv_depth->image.at<float>(yy, xx);
+                  if (std::isfinite(v) && v > 0.0f) {vals.push_back(static_cast<double>(v));}
+                }
               }
             }
-          }
-          if (vals.empty()) {
-            return std::nullopt;
-          }
-          std::nth_element(vals.begin(), vals.begin() + vals.size() / 2, vals.end());
-          return vals[vals.size() / 2];
-        };
+            if (vals.empty()) {
+              return std::nullopt;
+            }
+            std::nth_element(vals.begin(), vals.begin() + vals.size() / 2, vals.end());
+            return vals[vals.size() / 2];
+          };
 
         auto median_opt = depth_median(px, py);
         if (!median_opt.has_value()) {
@@ -548,18 +560,22 @@ private:
         // デバッグ: 深度値とray情報をログ出力
         if (verbose_logging_) {
           // カメラ内部パラメータを確認
-          RCLCPP_INFO(LOGGER, "CAM_INTRINSICS: fx=%.1f fy=%.1f cx=%.1f cy=%.1f",
-                      camera_model.fx(), camera_model.fy(), camera_model.cx(), camera_model.cy());
+          RCLCPP_INFO(
+            LOGGER, "CAM_INTRINSICS: fx=%.1f fy=%.1f cx=%.1f cy=%.1f",
+            camera_model.fx(), camera_model.fy(), camera_model.cx(), camera_model.cy());
           // ピクセル座標の変化を追跡
-          RCLCPP_INFO(LOGGER, "PIXEL_COORDS: raw(%.1f,%.1f) rect(%.1f,%.1f) final(%d,%d)",
-                      pixel_x, pixel_y, rect_point.x, rect_point.y, px, py);
+          RCLCPP_INFO(
+            LOGGER, "PIXEL_COORDS: raw(%.1f,%.1f) rect(%.1f,%.1f) final(%d,%d)",
+            pixel_x, pixel_y, rect_point.x, rect_point.y, px, py);
           // 手動計算との比較
           double manual_ray_x = (rect_point.x - camera_model.cx()) / camera_model.fx();
           double manual_ray_y = (rect_point.y - camera_model.cy()) / camera_model.fy();
-          RCLCPP_INFO(LOGGER, "RAY_COMPARE: lib(%.3f,%.3f,%.3f) manual(%.3f,%.3f,1.000)",
-                      ray.x, ray.y, ray.z, manual_ray_x, manual_ray_y);
-          RCLCPP_INFO(LOGGER, "DEPTH_DEBUG: pixel(%d,%d) raw_depth=%.3f center_dist=%.3f",
-                      px, py, median_opt.value(), center_distance);
+          RCLCPP_INFO(
+            LOGGER, "RAY_COMPARE: lib(%.3f,%.3f,%.3f) manual(%.3f,%.3f,1.000)",
+            ray.x, ray.y, ray.z, manual_ray_x, manual_ray_y);
+          RCLCPP_INFO(
+            LOGGER, "DEPTH_DEBUG: pixel(%d,%d) raw_depth=%.3f center_dist=%.3f",
+            px, py, median_opt.value(), center_distance);
         }
 
         const double DEPTH_MAX = 1.2;
@@ -581,7 +597,8 @@ private:
           bool transformed = false;
           std::string used_source_frame;
           std::string used_target_frame;
-          const std::vector<std::string> candidate_sources = build_candidate_frames(p_cam.header.frame_id);
+          const std::vector<std::string> candidate_sources = build_candidate_frames(
+            p_cam.header.frame_id);
           const std::vector<std::string> candidate_targets = {
             "base_link",
             "crane_x7/base_link",
@@ -630,7 +647,9 @@ private:
               double dx = d.pose.position.x - object_pose.position.x;
               double dy = d.pose.position.y - object_pose.position.y;
               double dz = d.pose.position.z - object_pose.position.z;
-              if (std::sqrt(dx * dx + dy * dy + dz * dz) < DUPLICATE_DETECTION_THRESHOLD && d.color == color) {
+              if (std::sqrt(dx * dx + dy * dy + dz * dz) < DUPLICATE_DETECTION_THRESHOLD &&
+                d.color == color)
+              {
                 close_to_existing = true;
                 break;
               }
@@ -642,17 +661,20 @@ private:
             // verboseモードでのみ検出ログを出力（通常は抑制してログノイズを削減）
             if (verbose_logging_) {
               std::string color_name = (color == Color::BLUE) ? "Blue" :
-                                       (color == Color::YELLOW) ? "Yellow" : "Green";
-              RCLCPP_INFO(LOGGER, "Detected %s object %s (%.3f, %.3f, %.3f) [cam (%.3f, %.3f, %.3f), src=%s -> tgt=%s]",
-                          color_name.c_str(),
-                          used_target_frame.c_str(),
-                          object_pose.position.x, object_pose.position.y, object_pose.position.z,
-                          camera_pos.x, camera_pos.y, camera_pos.z,
-                          used_source_frame.c_str(), used_target_frame.c_str());
+                (color == Color::YELLOW) ? "Yellow" : "Green";
+              RCLCPP_INFO(
+                LOGGER,
+                "%s@%s (%.3f,%.3f,%.3f) [cam(%.3f,%.3f,%.3f)]",
+                color_name.c_str(), used_target_frame.c_str(),
+                object_pose.position.x, object_pose.position.y,
+                object_pose.position.z,
+                camera_pos.x, camera_pos.y, camera_pos.z);
             }
             // Keep searching for other objects in the same frame
           } else {
-            RCLCPP_WARN(LOGGER, "Transform failed for frame %s. Tried optical/prefix variants. Skipping detection.",
+            RCLCPP_WARN(
+              LOGGER,
+              "Transform failed for frame %s. Tried optical/prefix variants. Skipping detection.",
               msg->header.frame_id.c_str());
           }
         }
@@ -677,7 +699,8 @@ int main(int argc, char ** argv)
   rclcpp::NodeOptions node_options;
   node_options.automatically_declare_parameters_from_overrides(true);
   node_options.allow_undeclared_parameters(true);
-  node_options.parameter_overrides({
+  node_options.parameter_overrides(
+  {
     {"use_sim_time", true}
   });
 
@@ -742,13 +765,17 @@ int main(int argc, char ** argv)
   // 配置場所（色ごとに異なる位置）
   // 全色を作業エリア外に配置（検証スキャンで再検出されないように）
   // 作業エリア: X: 0.10-0.40, Y: -0.15-0.25
+  // 左奥（Y > 0.25、作業エリア外）
+  // 右奥（Y < -0.15、作業エリア外）
+  // 前方（X > 0.40、作業エリア外）
   std::map<Color, geometry_msgs::msg::Pose> place_poses = {
-    {Color::YELLOW, createPose(0.30,  0.30, 0.23, -180, 0, 90)},   // 左奥（Y > 0.25、作業エリア外）
-    {Color::BLUE,   createPose(0.30, -0.30, 0.23, -180, 0, 90)},   // 右奥（Y < -0.15、作業エリア外）
-    {Color::GREEN,  createPose(0.45,  0.00, 0.23, -180, 0, 90)}    // 前方（X > 0.40、作業エリア外）
+    {Color::YELLOW, createPose(0.30, 0.30, 0.23, -180, 0, 90)},
+    {Color::BLUE, createPose(0.30, -0.30, 0.23, -180, 0, 90)},
+    {Color::GREEN, createPose(0.45, 0.00, 0.23, -180, 0, 90)}
   };
 
-  std::map<Color, geometry_msgs::msg::Pose> place_poses_above = place_poses;  // ドロップ用に同じ高さで移動のみ
+  // ドロップ用に同じ高さで移動のみ
+  std::map<Color, geometry_msgs::msg::Pose> place_poses_above = place_poses;
 
   RCLCPP_INFO(LOGGER, "Starting color sorting demo");
   // 初期姿勢（直接カメラ観察姿勢へ移動）
@@ -774,17 +801,17 @@ int main(int argc, char ** argv)
   // 生成された色をログ出力
   std::string color_str;
   for (size_t i = 0; i < spawn_sequence.size(); ++i) {
-    if (i > 0) color_str += ", ";
+    if (i > 0) {color_str += ", ";}
     color_str += colorToString(spawn_sequence[i]);
   }
   RCLCPP_INFO(LOGGER, "Spawn colors: [%s]", color_str.c_str());
 
   std::vector<geometry_msgs::msg::Point> spawn_positions = {
-    [](){geometry_msgs::msg::Point p; p.x = 0.22; p.y = -0.12; p.z = 1.10; return p;}(),
-    [](){geometry_msgs::msg::Point p; p.x = 0.30; p.y = -0.06; p.z = 1.10; return p;}(),
-    [](){geometry_msgs::msg::Point p; p.x = 0.22; p.y = 0.12;  p.z = 1.10; return p;}(),
-    [](){geometry_msgs::msg::Point p; p.x = 0.30; p.y = 0.06;  p.z = 1.10; return p;}(),
-    [](){geometry_msgs::msg::Point p; p.x = 0.26; p.y = 0.00;  p.z = 1.10; return p;}()
+    []() {geometry_msgs::msg::Point p; p.x = 0.22; p.y = -0.12; p.z = 1.10; return p;}(),
+    []() {geometry_msgs::msg::Point p; p.x = 0.30; p.y = -0.06; p.z = 1.10; return p;}(),
+    []() {geometry_msgs::msg::Point p; p.x = 0.22; p.y = 0.12;  p.z = 1.10; return p;}(),
+    []() {geometry_msgs::msg::Point p; p.x = 0.30; p.y = 0.06;  p.z = 1.10; return p;}(),
+    []() {geometry_msgs::msg::Point p; p.x = 0.26; p.y = 0.00;  p.z = 1.10; return p;}()
   };
   for (size_t i = 0; i < spawn_sequence.size(); ++i) {
     auto pos = spawn_positions[std::min(i, spawn_positions.size() - 1)];
@@ -808,25 +835,25 @@ int main(int argc, char ** argv)
     // フェーズ1: 一括スキャンしてターゲットリストを作成
     std::vector<TargetInfo> targets;
     auto in_work_area = [](const geometry_msgs::msg::Point & p) {
-      // 作業エリア内の物体のみをターゲットに
-      // X/Y範囲でフィルタリング、Z範囲は緩め（深度エラーはZ-FIXで補正）
-      // カメラは物理的にテーブル下を見えないので、負のZは深度エラー
-      return (p.x > 0.10 && p.x < 0.40 &&
-              p.y > -0.15 && p.y < 0.25 &&
-              p.z > -0.05 && p.z < 0.15);  // Z範囲は緩め（深度エラーはZ-FIXで対応）
-    };
+        // 作業エリア内の物体のみをターゲットに
+        // X/Y範囲でフィルタリング、Z範囲は緩め（深度エラーはZ-FIXで補正）
+        // カメラは物理的にテーブル下を見えないので、負のZは深度エラー
+        return p.x > 0.10 && p.x < 0.40 &&
+               p.y > -0.15 && p.y < 0.25 &&
+               p.z > -0.05 && p.z < 0.15;  // Z範囲は緩め（深度エラーはZ-FIXで対応）
+      };
     auto is_duplicate = [&](const geometry_msgs::msg::Point & p) {
-      for (const auto & t : targets) {
-        double dx = p.x - t.position.x;
-        double dy = p.y - t.position.y;
-        double dz = p.z - t.position.z;
-        double dist = std::sqrt(dx * dx + dy * dy + dz * dz);
-        if (dist < DUPLICATE_DETECTION_THRESHOLD) {
-          return true;
+        for (const auto & t : targets) {
+          double dx = p.x - t.position.x;
+          double dy = p.y - t.position.y;
+          double dz = p.z - t.position.z;
+          double dist = std::sqrt(dx * dx + dy * dy + dz * dz);
+          if (dist < DUPLICATE_DETECTION_THRESHOLD) {
+            return true;
+          }
         }
-      }
-      return false;
-    };
+        return false;
+      };
 
     RCLCPP_INFO(LOGGER, "");
     RCLCPP_INFO(LOGGER, "========================================");
@@ -870,28 +897,34 @@ int main(int argc, char ** argv)
 
           // 位置の妥当性チェック
           if (!in_work_area(p)) {
-            RCLCPP_INFO(LOGGER, "Ignoring object outside work area (%.3f, %.3f, %.3f) [X: 0.10-0.40, Y: -0.15-0.25, Z: -0.05-0.15]",
-                       p.x, p.y, p.z);
+            RCLCPP_INFO(
+              LOGGER, "Ignoring object outside work area (%.3f, %.3f, %.3f)",
+              p.x, p.y, p.z);
             continue;  // エリア外の物体はスキップ
           }
 
           // 極端に遠い位置をフィルタリング（カメラから1m以上遠い場合は除外）
           double distance = std::sqrt(p.x * p.x + p.y * p.y);
           if (distance > 0.50) {
-            RCLCPP_INFO(LOGGER, "Ignoring object too far from robot (%.3f, %.3f, distance: %.3f > 0.50)",
-                        p.x, p.y, distance);
+            RCLCPP_INFO(
+              LOGGER, "Ignoring object too far from robot (%.3f, %.3f, distance: %.3f > 0.50)",
+              p.x, p.y, distance);
             continue;
           }
 
           if (is_duplicate(p)) {
-            RCLCPP_INFO(LOGGER, "Skipped duplicate detection near (%.3f, %.3f, %.3f)", p.x, p.y, p.z);
+            RCLCPP_INFO(
+              LOGGER, "Skipped duplicate detection near (%.3f, %.3f, %.3f)", p.x, p.y,
+              p.z);
             continue;
           }
 
           // 新しい物体を発見 - 5回測定で平均化して精度向上
           std::string color_name = (detection.color == Color::BLUE) ? "Blue" :
-                                   (detection.color == Color::YELLOW) ? "Yellow" : "Green";
-          RCLCPP_INFO(LOGGER, "Found new %s object, performing averaged detection...", color_name.c_str());
+            (detection.color == Color::YELLOW) ? "Yellow" : "Green";
+          RCLCPP_INFO(
+            LOGGER, "Found new %s object, performing averaged detection...",
+            color_name.c_str());
 
           auto averaged = color_detector_node->getAveragedDetection(
             5, 200, detection.color, p, 0.08);  // 5回測定、200ms間隔、同色のみ、8cm以内
@@ -900,21 +933,25 @@ int main(int argc, char ** argv)
           if (averaged.detected && averaged.color == detection.color) {
             tgt.position = averaged.pose.position;
             tgt.detected_z = averaged.pose.position.z;
-            RCLCPP_INFO(LOGGER, "Using averaged position (%.3f, %.3f, %.3f)",
-                        tgt.position.x, tgt.position.y, tgt.position.z);
+            RCLCPP_INFO(
+              LOGGER, "Using averaged position (%.3f, %.3f, %.3f)",
+              tgt.position.x, tgt.position.y, tgt.position.z);
           } else {
             tgt.position = p;
             tgt.detected_z = p.z;
-            RCLCPP_WARN(LOGGER, "Averaged detection failed, using single detection (%.3f, %.3f, %.3f)",
-                        p.x, p.y, p.z);
+            RCLCPP_WARN(
+              LOGGER, "Averaged detection failed, using single detection (%.3f, %.3f, %.3f)",
+              p.x, p.y, p.z);
           }
           tgt.orientation = scan_poses[i].orientation;
           tgt.color = detection.color;
           tgt.yaw_angle_deg = detection.angle_deg;  // 傾き角度を保存
           targets.push_back(tgt);
 
-          RCLCPP_INFO(LOGGER, "Added target %s at (%.3f, %.3f, %.3f) angle=%.1f° from scan pose %zu",
-            color_name.c_str(), tgt.position.x, tgt.position.y, tgt.position.z, tgt.yaw_angle_deg, i + 1);
+          RCLCPP_INFO(
+            LOGGER, "Added target %s at (%.3f, %.3f, %.3f) angle=%.1f° from scan pose %zu",
+            color_name.c_str(), tgt.position.x, tgt.position.y, tgt.position.z, tgt.yaw_angle_deg,
+            i + 1);
 
           added_new = true;
         }
@@ -926,8 +963,9 @@ int main(int argc, char ** argv)
           consecutive_duplicate_or_invalid++;
         }
       }
-      RCLCPP_INFO(LOGGER, "Scan pose %zu complete. Total targets found: %zu (attempts: %d)",
-                  i + 1, targets.size(), total_attempts);
+      RCLCPP_INFO(
+        LOGGER, "Scan pose %zu complete. Total targets found: %zu (attempts: %d)",
+        i + 1, targets.size(), total_attempts);
     }
 
     if (targets.empty()) {
@@ -944,18 +982,20 @@ int main(int argc, char ** argv)
       {Color::YELLOW, 2},
       {Color::GREEN, 3}
     };
-    std::sort(targets.begin(), targets.end(), [&](const TargetInfo & a, const TargetInfo & b) {
-      return color_priority[a.color] < color_priority[b.color];
-    });
+    std::sort(
+      targets.begin(), targets.end(), [&](const TargetInfo & a, const TargetInfo & b) {
+        return color_priority[a.color] < color_priority[b.color];
+      });
 
     // スキャン結果のサマリーを表示
     RCLCPP_INFO(LOGGER, "");
     RCLCPP_INFO(LOGGER, "  SCAN COMPLETE: %zu targets found", targets.size());
     RCLCPP_INFO(LOGGER, "  ----------------------------------------");
     for (size_t i = 0; i < targets.size(); ++i) {
-      RCLCPP_INFO(LOGGER, "    %zu. %s at (%.2f, %.2f, %.2f)",
-                  i + 1, colorToString(targets[i].color).c_str(),
-                  targets[i].position.x, targets[i].position.y, targets[i].position.z);
+      RCLCPP_INFO(
+        LOGGER, "    %zu. %s at (%.2f, %.2f, %.2f)",
+        i + 1, colorToString(targets[i].color).c_str(),
+        targets[i].position.x, targets[i].position.y, targets[i].position.z);
     }
     RCLCPP_INFO(LOGGER, "  ----------------------------------------");
     RCLCPP_INFO(LOGGER, "  Processing order: BLUE -> YELLOW -> GREEN");
@@ -979,26 +1019,26 @@ int main(int argc, char ** argv)
     const double MAX_GRIPPER_YAW = 45.0;  // 最大回転角度（度）
     const double YAW_SCALE = 1.0;          // 角度のスケーリング係数（1.0 = そのまま適用）
     auto make_pick_pose = [&](const TargetInfo & tgt, double z) {
-      geometry_msgs::msg::Pose pose;
-      pose.position = tgt.position;
-      pose.position.x += GRIPPER_CAMERA_OFFSET_X;  // カメラ-グリッパーオフセット補正
-      pose.position.z = z;
-      // 傾き角度をグリッパーのyaw回転に反映
-      // カメラ画像の角度（水平からの回転）→ロボットのZ軸回転（yaw）
-      tf2::Quaternion q;
-      // 角度をスケーリングして制限
-      double scaled_yaw = tgt.yaw_angle_deg * YAW_SCALE;
-      if (scaled_yaw > MAX_GRIPPER_YAW) scaled_yaw = MAX_GRIPPER_YAW;
-      if (scaled_yaw < -MAX_GRIPPER_YAW) scaled_yaw = -MAX_GRIPPER_YAW;
-      // 基本姿勢: Roll=180°(下向き), Pitch=0°, Yaw=制限付き検出角度
-      q.setRPY(
-        angles::from_degrees(180.0),   // Roll: 下向き
-        angles::from_degrees(0.0),     // Pitch: 前後の傾きなし
-        angles::from_degrees(-scaled_yaw)  // Yaw: スケーリング＆制限付き角度
-      );
-      pose.orientation = tf2::toMsg(q);
-      return pose;
-    };
+        geometry_msgs::msg::Pose pose;
+        pose.position = tgt.position;
+        pose.position.x += GRIPPER_CAMERA_OFFSET_X;  // カメラ-グリッパーオフセット補正
+        pose.position.z = z;
+        // 傾き角度をグリッパーのyaw回転に反映
+        // カメラ画像の角度（水平からの回転）→ロボットのZ軸回転（yaw）
+        tf2::Quaternion q;
+        // 角度をスケーリングして制限
+        double scaled_yaw = tgt.yaw_angle_deg * YAW_SCALE;
+        if (scaled_yaw > MAX_GRIPPER_YAW) {scaled_yaw = MAX_GRIPPER_YAW;}
+        if (scaled_yaw < -MAX_GRIPPER_YAW) {scaled_yaw = -MAX_GRIPPER_YAW;}
+        // 基本姿勢: Roll=180°(下向き), Pitch=0°, Yaw=制限付き検出角度
+        q.setRPY(
+          angles::from_degrees(180.0),  // Roll: 下向き
+          angles::from_degrees(0.0),  // Pitch: 前後の傾きなし
+          angles::from_degrees(-scaled_yaw)  // Yaw: スケーリング＆制限付き角度
+        );
+        pose.orientation = tf2::toMsg(q);
+        return pose;
+      };
 
     // ピック高さ計算の基準（テーブル中心高さを 0 とし、立方体サイズを考慮）
     const double TABLE_HEIGHT = 0.0;
@@ -1006,49 +1046,58 @@ int main(int argc, char ** argv)
     const double GRAB_CLEARANCE = -0.025;    // 指先がキューブ中央に来るよう2.5cm下げる
     const double GRIPPER_LENGTH = 0.13;      // 手首から指先までの長さ（要調整）
     auto compute_pick_height = [&](double detected_z) {
-      const double MIN_VALID_Z = -0.10;
-      const double MAX_VALID_Z = 0.25;
-      if (detected_z < MIN_VALID_Z || detected_z > MAX_VALID_Z) {
-        return std::optional<double>{};
-      }
-      // 小さな負のZ値（センサーノイズ）は許容して動的計算に使用
-      // 大きな負の値のみクランプ（深度検出の明らかなエラー）
-      // Z値を許容範囲にクランプ（センサーノイズ対策）
-      const double Z_MIN_CLAMP = -0.03;  // 3cm以内の負の値は許容
-      const double Z_MAX_CLAMP = -0.015;  // 青の高さ誤検出対策（Yellow/Greenと同レベルに）
-      if (detected_z < Z_MIN_CLAMP) {
-        RCLCPP_WARN(LOGGER, "    [Z-FIX] Z too low (%.3f), clamping to %.3f", detected_z, Z_MIN_CLAMP);
-        detected_z = Z_MIN_CLAMP;
-      } else if (detected_z > Z_MAX_CLAMP) {
-        RCLCPP_WARN(LOGGER, "    [Z-FIX] Z too high (%.3f), clamping to %.3f", detected_z, Z_MAX_CLAMP);
-        detected_z = Z_MAX_CLAMP;
-      }
-      // 検出Zのずれ分だけ補正しつつ、物理的に無理のない範囲に収める
-      // 指先が物体中心少し上に来る位置を手首座標に変換する
-      double nominal = TABLE_HEIGHT + CUBE_HALF + GRAB_CLEARANCE + GRIPPER_LENGTH;
-      double delta = detected_z - TABLE_HEIGHT;
-      double pick = nominal + delta;
-      // クランプ範囲も手首基準で確保（シミュレーション用に下限を緩和）
-      const double MIN_PICK = 0.0;  // 下限なし
-      const double MAX_PICK = TABLE_HEIGHT + 0.15 + GRIPPER_LENGTH;   // 15cm + 指長
-      pick = std::clamp(pick, MIN_PICK, MAX_PICK);
-      return std::optional<double>(pick);
-    };
+        const double MIN_VALID_Z = -0.10;
+        const double MAX_VALID_Z = 0.25;
+        if (detected_z < MIN_VALID_Z || detected_z > MAX_VALID_Z) {
+          return std::optional<double>{};
+        }
+        // 小さな負のZ値（センサーノイズ）は許容して動的計算に使用
+        // 大きな負の値のみクランプ（深度検出の明らかなエラー）
+        // Z値を許容範囲にクランプ（センサーノイズ対策）
+        const double Z_MIN_CLAMP = -0.03;  // 3cm以内の負の値は許容
+        const double Z_MAX_CLAMP = -0.015;  // 青の高さ誤検出対策（Yellow/Greenと同レベルに）
+        if (detected_z < Z_MIN_CLAMP) {
+          RCLCPP_WARN(
+            LOGGER, "    [Z-FIX] Z too low (%.3f), clamping to %.3f", detected_z,
+            Z_MIN_CLAMP);
+          detected_z = Z_MIN_CLAMP;
+        } else if (detected_z > Z_MAX_CLAMP) {
+          RCLCPP_WARN(
+            LOGGER, "    [Z-FIX] Z too high (%.3f), clamping to %.3f", detected_z,
+            Z_MAX_CLAMP);
+          detected_z = Z_MAX_CLAMP;
+        }
+        // 検出Zのずれ分だけ補正しつつ、物理的に無理のない範囲に収める
+        // 指先が物体中心少し上に来る位置を手首座標に変換する
+        double nominal = TABLE_HEIGHT + CUBE_HALF + GRAB_CLEARANCE + GRIPPER_LENGTH;
+        double delta = detected_z - TABLE_HEIGHT;
+        double pick = nominal + delta;
+        // クランプ範囲も手首基準で確保（シミュレーション用に下限を緩和）
+        const double MIN_PICK = 0.0;  // 下限なし
+        const double MAX_PICK = TABLE_HEIGHT + 0.15 + GRIPPER_LENGTH;  // 15cm + 指長
+        pick = std::clamp(pick, MIN_PICK, MAX_PICK);
+        return std::optional<double>(pick);
+      };
 
     for (size_t idx = 0; idx < targets.size(); ++idx) {
       auto & tgt = targets[idx];
       std::string color_name = colorToString(tgt.color);
 
       RCLCPP_INFO(LOGGER, "");
-      RCLCPP_INFO(LOGGER, "--- Target %zu/%zu: %s ---", idx + 1, targets.size(), color_name.c_str());
-      RCLCPP_INFO(LOGGER, "    Position: (%.3f, %.3f, %.3f)", tgt.position.x, tgt.position.y, tgt.position.z);
+      RCLCPP_INFO(
+        LOGGER, "--- Target %zu/%zu: %s ---", idx + 1, targets.size(),
+        color_name.c_str());
+      RCLCPP_INFO(
+        LOGGER, "    Position: (%.3f, %.3f, %.3f)", tgt.position.x, tgt.position.y,
+        tgt.position.z);
       // Yaw角度補正の詳細ログ
       double scaled_yaw = tgt.yaw_angle_deg * YAW_SCALE;
       double limited_yaw = scaled_yaw;
-      if (limited_yaw > MAX_GRIPPER_YAW) limited_yaw = MAX_GRIPPER_YAW;
-      if (limited_yaw < -MAX_GRIPPER_YAW) limited_yaw = -MAX_GRIPPER_YAW;
-      RCLCPP_INFO(LOGGER, "    [YAW] 検出角度: %.1f° → スケール(x%.1f): %.1f° → 制限(±%.0f°): %.1f°",
-                  tgt.yaw_angle_deg, YAW_SCALE, scaled_yaw, MAX_GRIPPER_YAW, limited_yaw);
+      if (limited_yaw > MAX_GRIPPER_YAW) {limited_yaw = MAX_GRIPPER_YAW;}
+      if (limited_yaw < -MAX_GRIPPER_YAW) {limited_yaw = -MAX_GRIPPER_YAW;}
+      RCLCPP_INFO(
+        LOGGER, "    [YAW] 検出角度: %.1f° → スケール(x%.1f): %.1f° → 制限(±%.0f°): %.1f°",
+        tgt.yaw_angle_deg, YAW_SCALE, scaled_yaw, MAX_GRIPPER_YAW, limited_yaw);
       if (std::abs(limited_yaw) > 1.0) {
         RCLCPP_INFO(LOGGER, "    [YAW] グリッパー回転: %.1f° 適用", -limited_yaw);
       } else {
@@ -1083,29 +1132,35 @@ int main(int argc, char ** argv)
       bool centering_success = false;
       geometry_msgs::msg::Pose current_hover_pose = pick_pose_above;
 
-      for (int centering_attempt = 0; centering_attempt < CENTER_MAX_ATTEMPTS; centering_attempt++) {
+      for (int centering_attempt = 0; centering_attempt < CENTER_MAX_ATTEMPTS;
+        centering_attempt++)
+      {
         color_detector_node->resetDetection();
         rclcpp::sleep_for(std::chrono::milliseconds(300));
         auto detection = color_detector_node->getLatestDetection();
 
         if (!detection.detected || detection.color != tgt.color) {
-          RCLCPP_WARN(LOGGER, "Centering attempt %d: target color not detected, using current position",
-                      centering_attempt + 1);
+          RCLCPP_WARN(
+            LOGGER, "Centering attempt %d: target color not detected, using current position",
+            centering_attempt + 1);
           break;
         }
 
-        // 別のターゲットを誤検出していないかチェック（スキャン位置との距離）
-        const double MAX_SCAN_DISTANCE = 0.05;  // スキャン位置から5cm以上離れたら別ターゲットの可能性
+        // 別のターゲットを誤検出していないかチェック
+        // スキャン位置から5cm以上離れたら別ターゲットの可能性
+        const double MAX_SCAN_DISTANCE = 0.05;
         double dist_from_scan = std::sqrt(
           std::pow(detection.pose.position.x - tgt.position.x, 2) +
           std::pow(detection.pose.position.y - tgt.position.y, 2));
         if (dist_from_scan > MAX_SCAN_DISTANCE) {
-          RCLCPP_WARN(LOGGER, "    [CENTERING] 別ターゲット誤検出の可能性: 検出位置がスキャン位置から %.1fmm 離れている（閾値: %.1fmm）",
-                      dist_from_scan * 1000, MAX_SCAN_DISTANCE * 1000);
-          RCLCPP_WARN(LOGGER, "    [CENTERING]   スキャン位置: (%.3f, %.3f) → 検出位置: (%.3f, %.3f)",
-                      tgt.position.x, tgt.position.y,
-                      detection.pose.position.x, detection.pose.position.y);
-          RCLCPP_INFO(LOGGER, "    [CENTERING] センタリングをスキップしてスキャン位置を使用");
+          RCLCPP_WARN(
+            LOGGER, "[CENTERING] 誤検出? dist=%.1fmm > %.1fmm",
+            dist_from_scan * 1000, MAX_SCAN_DISTANCE * 1000);
+          RCLCPP_WARN(
+            LOGGER, "  scan:(%.3f,%.3f) -> det:(%.3f,%.3f)",
+            tgt.position.x, tgt.position.y,
+            detection.pose.position.x, detection.pose.position.y);
+          RCLCPP_INFO(LOGGER, "[CENTERING] スキップしてスキャン位置を使用");
           centering_success = true;  // スキャン位置で継続
           break;
         }
@@ -1116,20 +1171,24 @@ int main(int argc, char ** argv)
         double dx_px = detection.pixel_x - cx;
         double dy_px = detection.pixel_y - cy;
 
-        RCLCPP_INFO(LOGGER, "Centering attempt %d: pixel offset (%.1f, %.1f) px",
-                    centering_attempt + 1, dx_px, dy_px);
+        RCLCPP_INFO(
+          LOGGER, "Centering attempt %d: pixel offset (%.1f, %.1f) px",
+          centering_attempt + 1, dx_px, dy_px);
 
         // 許容範囲内なら完了
         if (std::abs(dx_px) <= CENTER_TOLERANCE_PX && std::abs(dy_px) <= CENTER_TOLERANCE_PX) {
-          RCLCPP_INFO(LOGGER, "Centering complete: object within ±%d px tolerance", CENTER_TOLERANCE_PX);
+          RCLCPP_INFO(
+            LOGGER, "Centering complete: object within ±%d px tolerance",
+            CENTER_TOLERANCE_PX);
           // 検出位置で最終更新
           tgt.position = detection.pose.position;
           tgt.detected_z = detection.pose.position.z;
           // 角度も再検出値で更新（ホバー直上からの検出がより正確）
           double old_yaw = tgt.yaw_angle_deg;
           tgt.yaw_angle_deg = detection.angle_deg;
-          RCLCPP_INFO(LOGGER, "    [CENTERING] 角度更新: %.1f° → %.1f°（差: %.1f°）",
-                      old_yaw, tgt.yaw_angle_deg, tgt.yaw_angle_deg - old_yaw);
+          RCLCPP_INFO(
+            LOGGER, "    [CENTERING] 角度更新: %.1f° → %.1f°（差: %.1f°）",
+            old_yaw, tgt.yaw_angle_deg, tgt.yaw_angle_deg - old_yaw);
           centering_success = true;
           break;
         }
@@ -1147,11 +1206,13 @@ int main(int argc, char ** argv)
 
         // センタリング移動量の詳細ログ
         double move_dist = std::sqrt(move_x * move_x + move_y * move_y);
-        RCLCPP_INFO(LOGGER, "    [CENTERING] %s: 移動量 (X:%.3f, Y:%.3f) m = %.1f mm",
-                    color_name.c_str(), move_x, move_y, move_dist * 1000);
-        RCLCPP_INFO(LOGGER, "    [CENTERING]   ホバー位置: (%.3f, %.3f) → 検出位置: (%.3f, %.3f)",
-                    current_hover_pose.position.x, current_hover_pose.position.y,
-                    detection.pose.position.x, detection.pose.position.y);
+        RCLCPP_INFO(
+          LOGGER, "    [CENTERING] %s: 移動量 (X:%.3f, Y:%.3f) m = %.1f mm",
+          color_name.c_str(), move_x, move_y, move_dist * 1000);
+        RCLCPP_INFO(
+          LOGGER, "    [CENTERING]   ホバー位置: (%.3f, %.3f) → 検出位置: (%.3f, %.3f)",
+          current_hover_pose.position.x, current_hover_pose.position.y,
+          detection.pose.position.x, detection.pose.position.y);
 
         // 新しいホバー位置へ移動
         current_hover_pose.position.x += move_x;
@@ -1176,14 +1237,16 @@ int main(int argc, char ** argv)
       }
 
       if (!centering_success) {
-        RCLCPP_WARN(LOGGER, "Centering did not converge for target %zu, proceeding with best estimate",
-                    idx + 1);
+        RCLCPP_WARN(
+          LOGGER, "Centering did not converge for target %zu, proceeding with best estimate",
+          idx + 1);
       }
 
       pick_pose_above = current_hover_pose;
       pick_pose = make_pick_pose(tgt, dynamic_pick_z);
-      RCLCPP_INFO(LOGGER, "Final pick position for target %zu: (%.3f, %.3f, %.3f)",
-                  idx + 1, tgt.position.x, tgt.position.y, tgt.position.z);
+      RCLCPP_INFO(
+        LOGGER, "Final pick position for target %zu: (%.3f, %.3f, %.3f)",
+        idx + 1, tgt.position.x, tgt.position.y, tgt.position.z);
 
       // Step 3: 下降して把持位置へ
       RCLCPP_INFO(LOGGER, "    Step 3/6: Descending to pick height (z=%.3f)", dynamic_pick_z);
@@ -1229,7 +1292,9 @@ int main(int argc, char ** argv)
       move_group_arm.setStartStateToCurrentState();
       move_group_arm.setPoseTarget(drop_pose);
       if (!move_group_arm.move()) {
-        RCLCPP_WARN(LOGGER, "    [FAIL] Could not reach drop position, releasing gripper and skipping");
+        RCLCPP_WARN(
+          LOGGER,
+          "    [FAIL] Could not reach drop position, releasing gripper and skipping");
         // グリッパーを開いてオブジェクトを解放（把持したまま次に進まない）
         gripper_joint_values[0] = GRIPPER_OPEN;
         move_group_gripper.setJointValueTarget(gripper_joint_values);
@@ -1245,7 +1310,9 @@ int main(int argc, char ** argv)
 
       // 処理数をカウント
       total_processed++;
-      RCLCPP_INFO(LOGGER, "--- Target %zu/%zu: %s COMPLETE ---", idx + 1, targets.size(), color_name.c_str());
+      RCLCPP_INFO(
+        LOGGER, "--- Target %zu/%zu: %s COMPLETE ---", idx + 1,
+        targets.size(), color_name.c_str());
     }
 
     // 安全上限に達した場合のみループ終了（通常はターゲットなしで終了）
@@ -1280,24 +1347,26 @@ int main(int argc, char ** argv)
   const double VERIFY_GRAB_CLEARANCE = -0.07;
   const double VERIFY_GRIPPER_LENGTH = 0.13;
   auto verify_compute_pick_height = [&](double detected_z) -> std::optional<double> {
-    const double MIN_VALID_Z = -0.10;
-    const double MAX_VALID_Z = 0.25;
-    if (detected_z < MIN_VALID_Z || detected_z > MAX_VALID_Z) {
-      return std::nullopt;
-    }
-    double nominal = VERIFY_TABLE_HEIGHT + VERIFY_CUBE_HALF + VERIFY_GRAB_CLEARANCE + VERIFY_GRIPPER_LENGTH;
-    double delta = detected_z - VERIFY_TABLE_HEIGHT;
-    double pick = nominal + delta;
-    const double MIN_PICK = 0.0;
-    const double MAX_PICK = VERIFY_TABLE_HEIGHT + 0.15 + VERIFY_GRIPPER_LENGTH;
-    pick = std::clamp(pick, MIN_PICK, MAX_PICK);
-    return pick;
-  };
+      const double MIN_VALID_Z = -0.10;
+      const double MAX_VALID_Z = 0.25;
+      if (detected_z < MIN_VALID_Z || detected_z > MAX_VALID_Z) {
+        return std::nullopt;
+      }
+      double nominal = VERIFY_TABLE_HEIGHT + VERIFY_CUBE_HALF + VERIFY_GRAB_CLEARANCE +
+        VERIFY_GRIPPER_LENGTH;
+      double delta = detected_z - VERIFY_TABLE_HEIGHT;
+      double pick = nominal + delta;
+      const double MIN_PICK = 0.0;
+      const double MAX_PICK = VERIFY_TABLE_HEIGHT + 0.15 + VERIFY_GRIPPER_LENGTH;
+      pick = std::clamp(pick, MIN_PICK, MAX_PICK);
+      return pick;
+    };
 
   while (rclcpp::ok() && verification_attempts < MAX_VERIFICATION_ATTEMPTS) {
     // カメラ観察姿勢へ戻る
-    RCLCPP_INFO(LOGGER, "Verification phase %d: Moving to camera observation posture",
-                verification_attempts + 1);
+    RCLCPP_INFO(
+      LOGGER, "Verification phase %d: Moving to camera observation posture",
+      verification_attempts + 1);
     move_group_arm.setStartStateToCurrentState();
     move_group_arm.setJointValueTarget(camera_start_joints);
     move_group_arm.move();
@@ -1310,10 +1379,10 @@ int main(int argc, char ** argv)
     // 複数回検出で確実性を上げる
     std::vector<TargetInfo> remaining_targets;
     auto in_work_area_verify = [](const geometry_msgs::msg::Point & p) {
-      return (p.x > 0.10 && p.x < 0.40 &&
-              p.y > -0.15 && p.y < 0.25 &&
-              p.z > -0.05 && p.z < 0.10);
-    };
+        return p.x > 0.10 && p.x < 0.40 &&
+               p.y > -0.15 && p.y < 0.25 &&
+               p.z > -0.05 && p.z < 0.10;
+      };
 
     for (int scan = 0; scan < 3; scan++) {
       color_detector_node->resetDetections();
@@ -1354,14 +1423,16 @@ int main(int argc, char ** argv)
       break;
     }
 
-    RCLCPP_WARN(LOGGER, "Found %zu remaining objects in work area, re-processing...",
-                remaining_targets.size());
+    RCLCPP_WARN(
+      LOGGER, "Found %zu remaining objects in work area, re-processing...",
+      remaining_targets.size());
 
     // 再処理（簡易版: ホバー→下降→把持→配置）
     for (const auto & tgt : remaining_targets) {
       std::string color_name = (tgt.color == Color::BLUE) ? "Blue" : "Yellow";
-      RCLCPP_INFO(LOGGER, "Re-processing %s at (%.3f, %.3f, %.3f)",
-                  color_name.c_str(), tgt.position.x, tgt.position.y, tgt.position.z);
+      RCLCPP_INFO(
+        LOGGER, "Re-processing %s at (%.3f, %.3f, %.3f)",
+        color_name.c_str(), tgt.position.x, tgt.position.y, tgt.position.z);
 
       auto pick_height_opt = verify_compute_pick_height(tgt.detected_z);
       if (!pick_height_opt.has_value()) {
@@ -1370,8 +1441,9 @@ int main(int argc, char ** argv)
       double pick_z = pick_height_opt.value();
 
       // ホバー
-      auto hover_pose = createPose(tgt.position.x, tgt.position.y, VERIFY_PICK_Z_ABOVE,
-                                   -180, 0, 90);
+      auto hover_pose = createPose(
+        tgt.position.x, tgt.position.y, VERIFY_PICK_Z_ABOVE,
+        -180, 0, 90);
       move_group_arm.setStartStateToCurrentState();
       if (!executeCartesianPath(move_group_arm, hover_pose, 0.01)) {
         continue;
@@ -1379,8 +1451,9 @@ int main(int argc, char ** argv)
       rclcpp::sleep_for(std::chrono::milliseconds(300));
 
       // 下降
-      auto pick_pose = createPose(tgt.position.x, tgt.position.y, pick_z,
-                                  -180, 0, 90);
+      auto pick_pose = createPose(
+        tgt.position.x, tgt.position.y, pick_z,
+        -180, 0, 90);
       move_group_arm.setStartStateToCurrentState();
       if (!executeCartesianPath(move_group_arm, pick_pose, 0.01)) {
         continue;
@@ -1394,8 +1467,9 @@ int main(int argc, char ** argv)
       rclcpp::sleep_for(std::chrono::milliseconds(200));
 
       // 持ち上げ
-      auto lift_pose = createPose(tgt.position.x, tgt.position.y, VERIFY_PICK_Z_LIFT,
-                                  -180, 0, 90);
+      auto lift_pose = createPose(
+        tgt.position.x, tgt.position.y, VERIFY_PICK_Z_LIFT,
+        -180, 0, 90);
       move_group_arm.setStartStateToCurrentState();
       executeCartesianPath(move_group_arm, lift_pose, 0.01);
 
@@ -1436,4 +1510,4 @@ int main(int argc, char ** argv)
 
   rclcpp::shutdown();
   return 0;
-}
+}  // NOLINT(readability/fn_size)

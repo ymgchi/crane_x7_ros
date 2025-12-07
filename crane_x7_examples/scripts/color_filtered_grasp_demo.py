@@ -51,7 +51,6 @@ def generate_scene(
     config: PipelineConfig = PipelineConfig(),
 ) -> o3d.geometry.PointCloud:
     """Create a synthetic point cloud with a floor, a box, and a target object."""
-
     rng = np.random.default_rng(seed)
 
     def sample_floor(num_points: int = 2500):
@@ -120,7 +119,9 @@ class PointCloudPreprocessor:
         self.exclusion_color = np.array(exclusion_color)
         self.radius = radius
 
-    def apply(self, pcd: o3d.geometry.PointCloud, enable_color_filter: bool) -> o3d.geometry.PointCloud:
+    def apply(
+        self, pcd: o3d.geometry.PointCloud, enable_color_filter: bool
+    ) -> o3d.geometry.PointCloud:
         """Either pass the cloud through (mode A) or filter out the exclusion color (mode B)."""
         if not enable_color_filter:
             return copy.deepcopy(pcd)
@@ -252,7 +253,9 @@ class ColorFilteredGraspDemo:
         curvatures, normals = estimate_curvature(
             filtered, radius=self.config.neighbor_radius, max_nn=self.config.max_neighbors
         )
-        edges, edge_mask = extract_edges(filtered, curvatures, percentile=self.config.curvature_percentile)
+        edges, edge_mask = extract_edges(
+            filtered, curvatures, percentile=self.config.curvature_percentile
+        )
         edge_points = np.asarray(edges.points)
         edge_normals = normals[edge_mask]
 

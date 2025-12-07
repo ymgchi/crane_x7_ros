@@ -15,15 +15,17 @@
 
 """Check table tilt using point cloud data."""
 
+import struct
+
+from geometry_msgs.msg import PointStamped
+import numpy as np
 import rclpy
 from rclpy.node import Node
-from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
+from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import PointCloud2
-import struct
-import numpy as np
 from tf2_ros import Buffer, TransformListener
-from geometry_msgs.msg import PointStamped
-import tf2_geometry_msgs
+import tf2_geometry_msgs  # noqa: F401 (required for PointStamped transform)
+
 
 class TableTiltChecker(Node):
     def __init__(self):
@@ -85,7 +87,10 @@ class TableTiltChecker(Node):
                 pt_cam.point.y = y
                 pt_cam.point.z = z
 
-                pt_base = self.tf_buffer.transform(pt_cam, "base_link", timeout=rclpy.duration.Duration(seconds=0.5))
+                pt_base = self.tf_buffer.transform(
+                    pt_cam, "base_link",
+                    timeout=rclpy.duration.Duration(seconds=0.5)
+                )
 
                 results.append({
                     "loc": "({:.1f},{:.1f})".format(row_pct, col_pct),
@@ -120,10 +125,12 @@ class TableTiltChecker(Node):
 
         rclpy.shutdown()
 
+
 def main():
     rclpy.init()
     node = TableTiltChecker()
     rclpy.spin(node)
+
 
 if __name__ == "__main__":
     main()

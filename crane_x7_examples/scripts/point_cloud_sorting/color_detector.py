@@ -14,6 +14,7 @@
 
 """
 HSV-based color detection from RGB images.
+
 Ported from color_sorting.cpp ColorDetector class.
 """
 
@@ -26,7 +27,7 @@ import cv2
 from rclpy.node import Node
 from rclpy.duration import Duration
 from sensor_msgs.msg import Image, CameraInfo
-from geometry_msgs.msg import Pose, Point, PointStamped
+from geometry_msgs.msg import Pose, PointStamped
 from cv_bridge import CvBridge
 from image_geometry import PinholeCameraModel
 from tf2_ros import Buffer, TransformListener, TransformException
@@ -35,6 +36,7 @@ import tf2_geometry_msgs  # noqa: F401 - registers transform types
 
 class Color(Enum):
     """Detected object colors."""
+
     NONE = auto()
     BLUE = auto()
     YELLOW = auto()
@@ -44,6 +46,7 @@ class Color(Enum):
 @dataclass
 class HSVRange:
     """HSV color range for detection."""
+
     h_min: int
     h_max: int
     s_min: int
@@ -55,6 +58,7 @@ class HSVRange:
 @dataclass
 class DetectionResult:
     """Single object detection result."""
+
     color: Color = Color.NONE
     pose: Pose = field(default_factory=Pose)
     detected: bool = False
@@ -98,10 +102,9 @@ class ColorDetector:
         """
         Initialize ColorDetector.
 
-        Args:
-            node: ROS 2 node for subscriptions and TF
-            hsv_ranges: Custom HSV ranges dict {Color: HSVRange}
-            target_frame: Target coordinate frame for 3D positions
+        :param node: ROS 2 node for subscriptions and TF
+        :param hsv_ranges: Custom HSV ranges dict {Color: HSVRange}
+        :param target_frame: Target coordinate frame for 3D positions
         """
         self._node = node
         self._logger = node.get_logger()
@@ -137,7 +140,10 @@ class ColorDetector:
     def _image_callback(self, msg: Image):
         """Store latest RGB image."""
         if self._latest_image is None:
-            self._logger.info(f"First RGB image received: {msg.width}x{msg.height}, encoding={msg.encoding}")
+            self._logger.info(
+                f"First RGB image received: {msg.width}x{msg.height}, "
+                f"encoding={msg.encoding}"
+            )
         self._latest_image = msg
 
     def _depth_callback(self, msg: Image):
@@ -165,8 +171,7 @@ class ColorDetector:
         """
         Perform detection on current images.
 
-        Returns:
-            List of DetectionResult for all detected objects.
+        :returns: List of DetectionResult for all detected objects.
         """
         if self._latest_image is None:
             self._logger.debug("No RGB image received yet")
@@ -178,7 +183,9 @@ class ColorDetector:
             self._logger.debug("No camera info received yet")
             return []
 
-        self._logger.debug(f"Detecting: image={self._latest_image.width}x{self._latest_image.height}")
+        self._logger.debug(
+            f"Detecting: image={self._latest_image.width}x{self._latest_image.height}"
+        )
 
         # Convert to OpenCV format
         try:
@@ -249,7 +256,9 @@ class ColorDetector:
         for contour in contours:
             area = cv2.contourArea(contour)
             if area < self.MIN_CONTOUR_AREA:
-                self._logger.info(f"    Contour area {area:.0f} < {self.MIN_CONTOUR_AREA} (skipped)")
+                self._logger.info(
+                    f"    Contour area {area:.0f} < {self.MIN_CONTOUR_AREA} (skipped)"
+                )
                 continue
 
             self._logger.info(f"    Processing contour with area {area:.0f}")
@@ -257,7 +266,7 @@ class ColorDetector:
             if result is not None:
                 results.append(result)
             else:
-                self._logger.info(f"    -> process_contour returned None")
+                self._logger.info("    -> process_contour returned None")
 
         return results
 
@@ -298,7 +307,10 @@ class ColorDetector:
 
         depth += self.DEPTH_OFFSET
         if depth < self.DEPTH_MIN or depth > self.DEPTH_MAX:
-            self._logger.info(f"    -> Depth {depth:.3f}m out of range [{self.DEPTH_MIN}, {self.DEPTH_MAX}]")
+            self._logger.info(
+                f"    -> Depth {depth:.3f}m out of range "
+                f"[{self.DEPTH_MIN}, {self.DEPTH_MAX}]"
+            )
             return None
 
         self._logger.info(f"    -> Depth at ({pixel_x:.0f}, {pixel_y:.0f}): {depth:.3f}m")
@@ -314,7 +326,10 @@ class ColorDetector:
             ray[2] * depth,
         )
 
-        self._logger.info(f"    -> Camera point: ({camera_point[0]:.3f}, {camera_point[1]:.3f}, {camera_point[2]:.3f})")
+        self._logger.info(
+            f"    -> Camera point: ({camera_point[0]:.3f}, "
+            f"{camera_point[1]:.3f}, {camera_point[2]:.3f})"
+        )
 
         # Transform to target frame
         pose = self._transform_to_base(camera_point, header)
@@ -322,7 +337,10 @@ class ColorDetector:
             self._logger.info(f"    -> TF transform failed (frame: {header.frame_id})")
             return None
 
-        self._logger.info(f"    -> Base point: ({pose.position.x:.3f}, {pose.position.y:.3f}, {pose.position.z:.3f})")
+        self._logger.info(
+            f"    -> Base point: ({pose.position.x:.3f}, "
+            f"{pose.position.y:.3f}, {pose.position.z:.3f})"
+        )
 
         return DetectionResult(
             color=color,
@@ -361,7 +379,10 @@ class ColorDetector:
 
         if not values:
             # Debug: show raw depth values
-            self._logger.debug(f"      Depth at ({cx}, {cy}): all invalid. Raw values (sample): {raw_values[:9]}")
+            self._logger.debug(
+                f"      Depth at ({cx}, {cy}): all invalid. "
+                f"Raw values (sample): {raw_values[:9]}"
+            )
             return None
 
         return float(np.median(values))

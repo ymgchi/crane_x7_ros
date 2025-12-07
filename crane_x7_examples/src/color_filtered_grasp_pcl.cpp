@@ -15,46 +15,44 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <deque>
 #include <limits>
 #include <memory>
+#include <numeric>
 #include <optional>
 #include <string>
-#include <numeric>
 #include <vector>
 
-#include <Eigen/Dense>
+#include "Eigen/Dense"
 
 #include "geometry_msgs/msg/pose_stamped.hpp"
-#include "rclcpp/rclcpp.hpp"
-#include "rclcpp/qos.hpp"
-#include "sensor_msgs/msg/point_cloud2.hpp"
-#include "std_msgs/msg/header.hpp"
-#include "std_msgs/msg/float32.hpp"
-
-#include "pcl_conversions/pcl_conversions.h"
+#include "opencv2/core.hpp"
+#include "opencv2/ml.hpp"
+#include "pcl/common/transforms.h"
 #include "pcl/features/integral_image_normal.h"
-#include "pcl/io/pcd_io.h"
-#include "pcl/point_cloud.h"
-#include "pcl/point_types.h"
+#include "pcl/features/normal_3d_omp.h"
 #include "pcl/features/organized_edge_detection.h"
+#include "pcl/filters/extract_indices.h"
 #include "pcl/filters/filter.h"
 #include "pcl/filters/passthrough.h"
 #include "pcl/filters/voxel_grid.h"
-#include "pcl/filters/extract_indices.h"
-#include "pcl/features/normal_3d_omp.h"
+#include "pcl/io/pcd_io.h"
 #include "pcl/ModelCoefficients.h"
+#include "pcl/point_cloud.h"
+#include "pcl/point_types.h"
 #include "pcl/segmentation/sac_segmentation.h"
-
-#include "opencv2/core.hpp"
-#include "opencv2/ml.hpp"
+#include "pcl_conversions/pcl_conversions.h"
+#include "rclcpp/qos.hpp"
+#include "rclcpp/rclcpp.hpp"
+#include "sensor_msgs/msg/point_cloud2.hpp"
+#include "std_msgs/msg/float32.hpp"
+#include "std_msgs/msg/header.hpp"
 #include "tf2/LinearMath/Quaternion.h"
+#include "tf2_eigen/tf2_eigen.hpp"
+#include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
 #include "tf2_ros/buffer.h"
 #include "tf2_ros/transform_broadcaster.h"
 #include "tf2_ros/transform_listener.h"
-#include "tf2_eigen/tf2_eigen.hpp"
-#include "pcl/common/transforms.h"
-#include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
-#include <deque>
 
 namespace
 {
@@ -194,10 +192,10 @@ private:
   {
     std::vector<std::string> frames;
     auto add_unique = [&](const std::string & f) {
-      if (std::find(frames.begin(), frames.end(), f) == frames.end()) {
-        frames.push_back(f);
-      }
-    };
+        if (std::find(frames.begin(), frames.end(), f) == frames.end()) {
+          frames.push_back(f);
+        }
+      };
 
     // Prioritize optical frames (point cloud data is typically in optical frame convention)
     add_unique("camera_depth_optical_frame");
@@ -269,19 +267,19 @@ private:
           resolved_base_frame_ = tgt;
           transform_cached_ = true;
 
-          RCLCPP_INFO(get_logger(),
-            "Resolved TF: '%s' → '%s' (translation: [%.3f, %.3f, %.3f], rotation quat [w=%.3f, x=%.3f, y=%.3f, z=%.3f])",
-            src.c_str(), tgt.c_str(), t.x(), t.y(), t.z(),
-            q.w(), q.x(), q.y(), q.z());
+          RCLCPP_INFO(
+            get_logger(),
+            "Resolved TF: '%s' -> '%s' (t:[%.3f,%.3f,%.3f], q:[w=%.3f])",
+            src.c_str(), tgt.c_str(), t.x(), t.y(), t.z(), q.w());
           return true;
-
         } catch (const tf2::TransformException &) {
           continue;
         }
       }
     }
 
-    RCLCPP_WARN(get_logger(),
+    RCLCPP_WARN(
+      get_logger(),
       "Failed to resolve TF from camera to base_link (tried %zu sources × %zu targets)",
       candidate_sources.size(), candidate_targets.size());
     return false;
@@ -312,7 +310,8 @@ private:
     const geometry_msgs::msg::PoseStamped & pose_in_camera)
   {
     // Build candidate source frames from the original frame
-    const std::vector<std::string> candidate_sources = build_candidate_frames(pose_in_camera.header.frame_id);
+    const std::vector<std::string> candidate_sources = build_candidate_frames(
+      pose_in_camera.header.frame_id);
 
     // List of possible target frames (base_link variations)
     const std::vector<std::string> candidate_targets = {
@@ -332,11 +331,16 @@ private:
           geometry_msgs::msg::PoseStamped pose_in_base =
             tf_buffer_->transform(pose_src, tgt, tf2::durationFromSec(0.1));
 
-          RCLCPP_INFO(get_logger(),
-            "Transformed pose from '%s' to '%s': camera[%.3f, %.3f, %.3f] → base[%.3f, %.3f, %.3f]",
+          RCLCPP_INFO(
+            get_logger(),
+            "TF '%s'->'%s': cam[%.3f,%.3f,%.3f] -> base[%.3f,%.3f,%.3f]",
             src.c_str(), tgt.c_str(),
-            pose_in_camera.pose.position.x, pose_in_camera.pose.position.y, pose_in_camera.pose.position.z,
-            pose_in_base.pose.position.x, pose_in_base.pose.position.y, pose_in_base.pose.position.z);
+            pose_in_camera.pose.position.x,
+            pose_in_camera.pose.position.y,
+            pose_in_camera.pose.position.z,
+            pose_in_base.pose.position.x,
+            pose_in_base.pose.position.y,
+            pose_in_base.pose.position.z);
 
           return pose_in_base;
         } catch (const tf2::TransformException &) {
@@ -346,7 +350,8 @@ private:
       }
     }
 
-    RCLCPP_WARN(get_logger(),
+    RCLCPP_WARN(
+      get_logger(),
       "Failed to transform pose from '%s' to base_link (tried %zu sources × %zu targets).",
       pose_in_camera.header.frame_id.c_str(), candidate_sources.size(), candidate_targets.size());
     return std::nullopt;
@@ -363,7 +368,7 @@ private:
     if (dz < min_above_table || dz > max_above_table) {
       RCLCPP_WARN(
         get_logger(),
-        "Rejected grasp: height offset from table %.3f m (table=%.3f, grasp=%.3f, allowed %.3f..%.3f)",
+        "Rejected grasp: dz=%.3f (table=%.3f, grasp=%.3f, range=[%.3f,%.3f])",
         dz, last_table_height_base_, pose_base.pose.position.z,
         min_above_table, max_above_table);
       return false;
@@ -449,7 +454,8 @@ private:
     plane_c_base_ = coeffs(2);
     has_plane_base_ = true;
 
-    RCLCPP_INFO(get_logger(),
+    RCLCPP_INFO(
+      get_logger(),
       "Plane in base_link: Z = %.6f*X + %.6f*Y + %.6f (tilt dZ/dX=%.4f, dZ/dY=%.4f)",
       plane_a_base_, plane_b_base_, plane_c_base_,
       plane_a_base_, plane_b_base_);
@@ -466,7 +472,8 @@ private:
     }
     double table_z_at_xy = plane_a_base_ * x + plane_b_base_ * y + plane_c_base_;
     double z_corrected = z - table_z_at_xy;
-    RCLCPP_INFO(get_logger(),
+    RCLCPP_INFO(
+      get_logger(),
       "Tilt correction: Z=%.4f → Z_corrected=%.4f (table_z_at_xy=%.4f)",
       z, z_corrected, table_z_at_xy);
     return z_corrected;
@@ -483,9 +490,10 @@ private:
     t.transform.translation.z = pose.pose.position.z;
     t.transform.rotation = pose.pose.orientation;
     tf_broadcaster_->sendTransform(t);
-    RCLCPP_INFO(get_logger(), "Broadcast TF: %s → %s [%.3f, %.3f, %.3f]",
-                pose.header.frame_id.c_str(), t.child_frame_id.c_str(),
-                t.transform.translation.x, t.transform.translation.y, t.transform.translation.z);
+    RCLCPP_INFO(
+      get_logger(), "Broadcast TF: %s → %s [%.3f, %.3f, %.3f]",
+      pose.header.frame_id.c_str(), t.child_frame_id.c_str(),
+      t.transform.translation.x, t.transform.translation.y, t.transform.translation.z);
   }
 
   void pointcloud_callback(const sensor_msgs::msg::PointCloud2::SharedPtr msg)
@@ -503,15 +511,19 @@ private:
     // Convert ROS message to PCL point cloud
     pcl::PointCloud<PointT>::Ptr cloud_camera(new pcl::PointCloud<PointT>());
     pcl::fromROSMsg(*msg, *cloud_camera);
-    RCLCPP_INFO(get_logger(), "Received point cloud: %zu points in frame '%s'",
-                cloud_camera->size(), msg->header.frame_id.c_str());
+    RCLCPP_INFO(
+      get_logger(), "Received point cloud: %zu points in frame '%s'",
+      cloud_camera->size(), msg->header.frame_id.c_str());
 
     // Debug: check point cloud range BEFORE transformation
     {
       size_t finite_before = 0;
-      float bx_min = std::numeric_limits<float>::max(), bx_max = std::numeric_limits<float>::lowest();
-      float by_min = std::numeric_limits<float>::max(), by_max = std::numeric_limits<float>::lowest();
-      float bz_min = std::numeric_limits<float>::max(), bz_max = std::numeric_limits<float>::lowest();
+      float bx_min = std::numeric_limits<float>::max(),
+        bx_max = std::numeric_limits<float>::lowest();
+      float by_min = std::numeric_limits<float>::max(),
+        by_max = std::numeric_limits<float>::lowest();
+      float bz_min = std::numeric_limits<float>::max(),
+        bz_max = std::numeric_limits<float>::lowest();
       for (const auto & p : cloud_camera->points) {
         if (std::isfinite(p.x) && std::isfinite(p.y) && std::isfinite(p.z)) {
           finite_before++;
@@ -520,13 +532,16 @@ private:
           bz_min = std::min(bz_min, p.z); bz_max = std::max(bz_max, p.z);
         }
       }
-      RCLCPP_INFO(get_logger(), "BEFORE transform: %zu finite points, range X[%.2f,%.2f] Y[%.2f,%.2f] Z[%.2f,%.2f]",
-                  finite_before, bx_min, bx_max, by_min, by_max, bz_min, bz_max);
+      RCLCPP_INFO(
+        get_logger(), "BEFORE tf: %zu pts, X[%.2f,%.2f] Y[%.2f,%.2f] Z[%.2f,%.2f]",
+        finite_before, bx_min, bx_max, by_min, by_max, bz_min, bz_max);
     }
 
     // === EARLY TRANSFORMATION: Convert point cloud from camera frame to base_link ===
     // This corrects for camera tilt and allows processing in robot-centric coordinates
-    pcl::PointCloud<PointT>::Ptr cloud = transform_cloud_to_base_link(cloud_camera, msg->header.frame_id);
+    pcl::PointCloud<PointT>::Ptr cloud = transform_cloud_to_base_link(
+      cloud_camera,
+      msg->header.frame_id);
     if (!cloud) {
       RCLCPP_WARN(get_logger(), "Failed to transform point cloud to base_link. Waiting for TF...");
       return;
@@ -546,8 +561,9 @@ private:
         tz_min = std::min(tz_min, p.z); tz_max = std::max(tz_max, p.z);
       }
     }
-    RCLCPP_INFO(get_logger(), "After transform: %zu finite points, range X[%.2f,%.2f] Y[%.2f,%.2f] Z[%.2f,%.2f]",
-                finite_after_transform, tx_min, tx_max, ty_min, ty_max, tz_min, tz_max);
+    RCLCPP_INFO(
+      get_logger(), "After tf: %zu pts, X[%.2f,%.2f] Y[%.2f,%.2f] Z[%.2f,%.2f]",
+      finite_after_transform, tx_min, tx_max, ty_min, ty_max, tz_min, tz_max);
 
     // Publish transformed cloud for debugging (in base_link frame)
     if (transformed_cloud_pub_->get_subscription_count() > 0) {
@@ -567,15 +583,15 @@ private:
     pass_z.setKeepOrganized(true);  // Keep organized structure by setting invalid points to NaN
     pass_z.filter(*cloud_filtered_z);
     cloud = cloud_filtered_z;  // Replace with filtered cloud
-    RCLCPP_INFO(get_logger(), "After Z filter (%.2f-%.2fm): %zu points (workspace: X[%.2f,%.2f] Y[%.2f,%.2f])",
-                pass_z_min_, pass_z_max_, cloud->size(),
-                pass_x_min_, pass_x_max_, pass_y_min_, pass_y_max_);
+    RCLCPP_INFO(
+      get_logger(), "Z filter(%.2f-%.2f): %zu pts (ws: X[%.2f,%.2f] Y[%.2f,%.2f])",
+      pass_z_min_, pass_z_max_, cloud->size(),
+      pass_x_min_, pass_x_max_, pass_y_min_, pass_y_max_);
 
     if (!cloud->isOrganized() || cloud->height <= 1) {
       RCLCPP_WARN(
         get_logger(),
-        "Input cloud is not organized (height=%u, width=%u). Please provide an organized PointCloud2 "
-        "(e.g., raw depth image points) or structure the cloud before this node.",
+        "Cloud not organized (h=%u, w=%u). Need organized PointCloud2.",
         cloud->height, cloud->width);
       return;
     }
@@ -583,7 +599,7 @@ private:
     const int width = static_cast<int>(cloud->width);
     const int height = static_cast<int>(cloud->height);
 
-    // Keep organized structure: mask out points outside ROI or near exclusion color by writing NaNs.
+    // Keep organized structure: mask out points outside ROI by writing NaNs.
     pcl::PointCloud<PointT>::Ptr filtered(new pcl::PointCloud<PointT>(*cloud));
     filtered->is_dense = false;
     size_t finite_count = 0;
@@ -619,13 +635,14 @@ private:
       bool in_workspace = x_ok && y_ok && z_ok;
 
       // Track rejection reasons
-      if (!x_ok) roi_rejected_x++;
-      if (!y_ok) roi_rejected_y++;
-      if (!z_ok) roi_rejected_z++;
+      if (!x_ok) {roi_rejected_x++;}
+      if (!y_ok) {roi_rejected_y++;}
+      if (!z_ok) {roi_rejected_z++;}
 
       // Apply color exclusion filter
-      bool far_from_exclusion = color_distance(p, exclusion_color_) > static_cast<float>(color_filter_radius_);
-      if (in_workspace && !far_from_exclusion) color_rejected++;
+      bool far_from_exclusion =
+        color_distance(p, exclusion_color_) > static_cast<float>(color_filter_radius_);
+      if (in_workspace && !far_from_exclusion) {color_rejected++;}
 
       if (!(in_workspace && far_from_exclusion)) {
         p.x = p.y = p.z = std::numeric_limits<float>::quiet_NaN();
@@ -636,15 +653,17 @@ private:
 
     // Debug: Show rejection breakdown
     RCLCPP_INFO(get_logger(), "=== ROI FILTER DEBUG ===");
-    RCLCPP_INFO(get_logger(), "Workspace bounds: X[%.2f,%.2f] Y[%.2f,%.2f] Z[%.2f,%.2f]",
-                pass_x_min_, pass_x_max_, pass_y_min_, pass_y_max_, pass_z_min_, pass_z_max_);
-    RCLCPP_INFO(get_logger(), "Rejection breakdown: X_out=%zu, Y_out=%zu, Z_out=%zu, color_excl=%zu",
-                roi_rejected_x, roi_rejected_y, roi_rejected_z, color_rejected);
+    RCLCPP_INFO(
+      get_logger(), "Workspace bounds: X[%.2f,%.2f] Y[%.2f,%.2f] Z[%.2f,%.2f]",
+      pass_x_min_, pass_x_max_, pass_y_min_, pass_y_max_, pass_z_min_, pass_z_max_);
+    RCLCPP_INFO(
+      get_logger(), "Rejection breakdown: X_out=%zu, Y_out=%zu, Z_out=%zu, color_excl=%zu",
+      roi_rejected_x, roi_rejected_y, roi_rejected_z, color_rejected);
 
     if (initial_finite > 0) {
       RCLCPP_INFO(
         get_logger(),
-        "Point cloud range: X[%.3f, %.3f] Y[%.3f, %.3f] Z[%.3f, %.3f] (initial_finite=%zu, after_filter=%zu)",
+        "Cloud range: X[%.3f,%.3f] Y[%.3f,%.3f] Z[%.3f,%.3f] (init=%zu, filt=%zu)",
         min_x, max_x, min_y, max_y, min_z, max_z, initial_finite, finite_count);
     }
     if (finite_count == 0) {
@@ -655,9 +674,9 @@ private:
     }
     const size_t total = static_cast<size_t>(width) * static_cast<size_t>(height);
     const double valid_ratio = static_cast<double>(finite_count) / static_cast<double>(total);
-    // Require at least 50% valid points AND minimum 50000 points for organized processing
-    // This prevents IntegralImageNormalEstimation from encountering sparse clouds that cause Eigen errors
-    // Lower density clouds will use the unorganized fallback which is more robust
+    // Require minimum valid points for organized processing.
+    // Sparse clouds cause Eigen errors in IntegralImageNormalEstimation.
+    // Lower density clouds use the unorganized fallback.
     // NOTE: Organized path disabled due to IntegralImageNormalEstimation Eigen assertion error
     // Setting impossibly high threshold to always use unorganized fallback
     const size_t min_organized_points = 999999999;  // Always use unorganized path
@@ -666,8 +685,8 @@ private:
     if (finite_count < min_organized_points || valid_ratio < min_valid_ratio) {
       RCLCPP_WARN(
         get_logger(),
-        "Too few finite points for organized processing (%zu/%zu = %.1f%%, need >%zu and >%.0f%%). Falling back.",
-        finite_count, total, valid_ratio * 100.0, min_organized_points, min_valid_ratio * 100.0);
+        "Sparse cloud (%zu/%zu=%.1f%%). Using unorganized fallback.",
+        finite_count, total, valid_ratio * 100.0);
 
       // Fallback: remove NaNs and run a simple curvature+GMM pipeline (unorganized).
       pcl::PointCloud<PointT>::Ptr unorganized(new pcl::PointCloud<PointT>());
@@ -684,8 +703,9 @@ private:
       voxel.setInputCloud(unorganized);
       voxel.setLeafSize(voxel_leaf_size_, voxel_leaf_size_, voxel_leaf_size_);
       voxel.filter(*downsampled);
-      RCLCPP_INFO(get_logger(), "VoxelGrid downsampling: %zu → %zu points",
-                  unorganized->size(), downsampled->size());
+      RCLCPP_INFO(
+        get_logger(), "VoxelGrid downsampling: %zu → %zu points",
+        unorganized->size(), downsampled->size());
       unorganized = downsampled;
 
       if (unorganized->empty()) {
@@ -718,11 +738,13 @@ private:
           const auto & p = unorganized->points[static_cast<size_t>(idx)];
           plane_sum += Eigen::Vector3f(p.x, p.y, p.z);
         }
-        Eigen::Vector3f plane_centroid = plane_sum / static_cast<float>(plane_inliers->indices.size());
+        Eigen::Vector3f plane_centroid = plane_sum /
+          static_cast<float>(plane_inliers->indices.size());
 
         float plane_ratio = static_cast<float>(plane_inliers->indices.size()) /
-                           static_cast<float>(unorganized->size());
-        RCLCPP_INFO(get_logger(),
+          static_cast<float>(unorganized->size());
+        RCLCPP_INFO(
+          get_logger(),
           "RANSAC plane (base_link): %zu inliers (%.1f%%), centroid z=%.3f",
           plane_inliers->indices.size(), plane_ratio * 100.0f, plane_centroid.z());
 
@@ -735,7 +757,8 @@ private:
           float c = plane_coeff->values[2];
           float d = plane_coeff->values[3];
 
-          RCLCPP_INFO(get_logger(),
+          RCLCPP_INFO(
+            get_logger(),
             "Plane coefficients (base_link): a=%.6f, b=%.6f, c=%.6f, d=%.6f",
             a, b, c, d);
 
@@ -746,7 +769,8 @@ private:
             plane_b_base_ = -b / c;
             plane_c_base_ = -d / c;
             has_plane_base_ = true;
-            RCLCPP_INFO(get_logger(),
+            RCLCPP_INFO(
+              get_logger(),
               "Table plane in base_link: Z = %.4f*X + %.4f*Y + %.4f (tilt dZ/dX=%.4f, dZ/dY=%.4f)",
               plane_a_base_, plane_b_base_, plane_c_base_, plane_a_base_, plane_b_base_);
           }
@@ -770,14 +794,16 @@ private:
         pcl::PointCloud<PointT>::Ptr objects_cloud(new pcl::PointCloud<PointT>());
         extract.filter(*objects_cloud);
 
-        RCLCPP_INFO(get_logger(),
+        RCLCPP_INFO(
+          get_logger(),
           "After plane removal: %zu points (removed %zu table points)",
           objects_cloud->size(), plane_inliers->indices.size());
 
         if (objects_cloud->size() >= 10) {
           unorganized = objects_cloud;
         } else {
-          RCLCPP_WARN(get_logger(),
+          RCLCPP_WARN(
+            get_logger(),
             "Too few points after plane removal (%zu). Proceeding with all points.",
             objects_cloud->size());
         }
@@ -795,7 +821,8 @@ private:
       ne_omp.setKSearch(15);
       pcl::PointCloud<pcl::Normal>::Ptr normals_omp(new pcl::PointCloud<pcl::Normal>());
       ne_omp.compute(*normals_omp);
-      RCLCPP_INFO(get_logger(), "Normal estimation complete: %zu normals computed", normals_omp->size());
+      RCLCPP_INFO(
+        get_logger(), "Normal estimation complete: %zu normals computed", normals_omp->size());
 
       std::vector<float> curvatures;
       curvatures.reserve(normals_omp->size());
@@ -806,14 +833,16 @@ private:
       }
       RCLCPP_INFO(get_logger(), "Valid curvatures: %zu", curvatures.size());
       if (curvatures.size() < static_cast<size_t>(gmm_components)) {
-        RCLCPP_WARN(get_logger(), "Fallback: not enough points for curvature (%zu).", curvatures.size());
+        RCLCPP_WARN(
+          get_logger(), "Fallback: not enough points for curvature (%zu).", curvatures.size());
         return;
       }
       // Use 85th percentile for more inclusive edge detection (was 92nd)
       // Lower percentile = more edges detected = better for small objects
       const float curvature_percentile = 0.85f;
-      RCLCPP_INFO(get_logger(), "Extracting edges from curvatures (threshold will be %.0f%% percentile)...",
-                  curvature_percentile * 100.0f);
+      RCLCPP_INFO(
+        get_logger(), "Extracting edges from curvatures (threshold will be %.0f%% percentile)...",
+        curvature_percentile * 100.0f);
       std::vector<float> sorted = curvatures;
       size_t idx = static_cast<size_t>(curvature_percentile * (sorted.size() - 1));
       std::nth_element(sorted.begin(), sorted.begin() + idx, sorted.end());
@@ -880,25 +909,29 @@ private:
       if (!edge_z_values.empty()) {
         float min_edge_z = *std::min_element(edge_z_values.begin(), edge_z_values.end());
         float max_edge_z = *std::max_element(edge_z_values.begin(), edge_z_values.end());
-        RCLCPP_INFO(get_logger(),
+        RCLCPP_INFO(
+          get_logger(),
           "Edge Z range (base_link): [%.3f, %.3f], table_z=%.3f, NaN=%zu, Z-filtered=%zu",
           min_edge_z, max_edge_z, has_table_height_base_ ? last_table_height_base_ : -1.0f,
           nan_count, z_filtered_count);
         if (has_table_height_base_) {
           float filter_min = last_table_height_base_ - 0.02f;
           float filter_max = last_table_height_base_ + 0.20f;
-          RCLCPP_INFO(get_logger(),
+          RCLCPP_INFO(
+            get_logger(),
             "Z filter bounds (base_link): [%.3f, %.3f] (table - 0.02, table + 0.20)",
             filter_min, filter_max);
         }
       }
       RCLCPP_INFO(get_logger(), "Valid edge points after filtering: %zu", edge_points.size());
       if (edge_points.size() < static_cast<size_t>(gmm_components)) {
-        RCLCPP_WARN(get_logger(), "Fallback: insufficient valid edge points (%zu).", edge_points.size());
+        RCLCPP_WARN(
+          get_logger(), "Fallback: insufficient valid edge points (%zu).", edge_points.size());
         return;
       }
 
-      RCLCPP_INFO(get_logger(), "Preparing GMM samples (%zu points × 6 features)...", edge_points.size());
+      RCLCPP_INFO(
+        get_logger(), "Preparing GMM samples (%zu points × 6 features)...", edge_points.size());
       cv::Mat samples(static_cast<int>(edge_points.size()), 6, CV_32F);
       for (size_t i = 0; i < edge_points.size(); ++i) {
         for (int k = 0; k < 3; ++k) {
@@ -907,11 +940,15 @@ private:
         }
       }
       cv::Ptr<cv::ml::EM> em = cv::ml::EM::create();
-      int clusters = std::max(1, std::min<int>(gmm_components, static_cast<int>(edge_points.size())));
+      int clusters =
+        std::max(1, std::min<int>(gmm_components, static_cast<int>(edge_points.size())));
       RCLCPP_INFO(get_logger(), "Training GMM with %d clusters...", clusters);
       em->setClustersNumber(clusters);
       em->setCovarianceMatrixType(cv::ml::EM::COV_MAT_GENERIC);
-      em->setTermCriteria(cv::TermCriteria(cv::TermCriteria::MAX_ITER + cv::TermCriteria::EPS, 50, 1e-3));
+      em->setTermCriteria(
+        cv::TermCriteria(
+          cv::TermCriteria::MAX_ITER + cv::TermCriteria::EPS, 50,
+          1e-3));
       if (!em->trainEM(samples, cv::noArray(), cv::noArray(), cv::noArray())) {
         RCLCPP_WARN(get_logger(), "Fallback: GMM training failed.");
         return;
@@ -927,8 +964,9 @@ private:
         counts[static_cast<size_t>(lbl)]++;
       }
       int best_cluster = static_cast<int>(std::distance(
-        counts.begin(), std::max_element(counts.begin(), counts.end())));
-      RCLCPP_INFO(get_logger(), "Best cluster: %d with %d points", best_cluster, counts[best_cluster]);
+          counts.begin(), std::max_element(counts.begin(), counts.end())));
+      RCLCPP_INFO(
+        get_logger(), "Best cluster: %d with %d points", best_cluster, counts[best_cluster]);
       std::vector<size_t> cluster_indices;
       for (size_t i = 0; i < labels.size(); ++i) {
         if (labels[i] == best_cluster) {
@@ -948,14 +986,16 @@ private:
         size_t step = cluster_indices.size() / max_sample_size;
         for (size_t i = 0; i < cluster_indices.size(); i += step) {
           sampled_indices.push_back(cluster_indices[i]);
-          if (sampled_indices.size() >= max_sample_size) break;
+          if (sampled_indices.size() >= max_sample_size) {break;}
         }
-        RCLCPP_INFO(get_logger(), "Sampled %zu/%zu cluster points for grasp computation",
-                    sampled_indices.size(), cluster_indices.size());
+        RCLCPP_INFO(
+          get_logger(), "Sampled %zu/%zu cluster points for grasp computation",
+          sampled_indices.size(), cluster_indices.size());
       } else {
         sampled_indices = cluster_indices;
-        RCLCPP_INFO(get_logger(), "Computing grasp score for %zu cluster points...",
-                    sampled_indices.size());
+        RCLCPP_INFO(
+          get_logger(), "Computing grasp score for %zu cluster points...",
+          sampled_indices.size());
       }
 
       const float sigma = 0.1f;
@@ -983,8 +1023,9 @@ private:
       }
       Eigen::Vector3f centroid = edge_points[best_idx];
       Eigen::Vector3f normal_sum = edge_normals[best_idx];
-      RCLCPP_INFO(get_logger(), "Grasp centroid computed: [%.3f, %.3f, %.3f] with score %.3f",
-                  centroid.x(), centroid.y(), centroid.z(), best_score);
+      RCLCPP_INFO(
+        get_logger(), "Grasp centroid computed: [%.3f, %.3f, %.3f] with score %.3f",
+        centroid.x(), centroid.y(), centroid.z(), best_score);
       tf2::Quaternion q = normal_to_quaternion(normal_sum);
 
       // Point cloud is already in base_link frame, so pose is directly in base_link
@@ -1019,14 +1060,15 @@ private:
 
       // Publish edge points for visualization (in base_link frame)
       if (edge_pub_->get_subscription_count() > 0) {
-        RCLCPP_INFO(get_logger(), "[UNORGANIZED PATH] Publishing %zu edge points in frame '%s'",
+        RCLCPP_INFO(
+          get_logger(), "[UNORGANIZED PATH] Publishing %zu edge points in frame '%s'",
           edge_points.size(), resolved_base_frame_.c_str());
 
         pcl::PointCloud<PointT>::Ptr edges_base(new pcl::PointCloud<PointT>());
         edges_base->header.frame_id = resolved_base_frame_;
         edges_base->header.stamp = pcl_conversions::toPCL(header.stamp);
         edges_base->points.reserve(edge_points.size());
-        for (const auto& pt : edge_points) {
+        for (const auto & pt : edge_points) {
           PointT p;
           p.x = pt.x();
           p.y = pt.y();
@@ -1058,10 +1100,10 @@ private:
     pcl::removeNaNFromPointCloud(*filtered, *dense_cloud, dense_indices);
     if (!dense_cloud->empty()) {
       auto run_segmentation = [&](pcl::PointCloud<PointT>::Ptr input_cloud,
-                                  const std::string &label,
-                                  pcl::SacModel model, float eps_deg,
-                                  float distance, int iters,
-                                  std::vector<int> &input_indices)
+          const std::string & label,
+          pcl::SacModel model, float eps_deg,
+          float distance, int iters,
+          std::vector<int> & input_indices)
         -> std::optional<pcl::PointIndices::Ptr>
         {
           pcl::SACSegmentation<PointT> seg;
@@ -1107,12 +1149,12 @@ private:
             (normal_dot > std::cos(20.0f * kRadPerDeg)) : true;
           const bool z_ok = plane_centroid.z() > 0.3f && plane_centroid.z() < 0.8f;
 
+          float inlier_pct = 100.0f * static_cast<float>(inliers->indices.size()) /
+            static_cast<float>(input_cloud->size());
           RCLCPP_INFO(
             get_logger(),
-            "RANSAC %s: inliers=%zu (%.1f%%), centroid z=%.3f, normal dot=%.3f, normal_ok=%d, z_ok=%d",
-            label.c_str(), inliers->indices.size(),
-            100.0f * static_cast<float>(inliers->indices.size()) /
-              static_cast<float>(input_cloud->size()),
+            "RANSAC %s: inliers=%zu (%.1f%%), z=%.3f, dot=%.3f, ok=%d/%d",
+            label.c_str(), inliers->indices.size(), inlier_pct,
             plane_centroid.z(), normal_dot, normal_ok, z_ok);
 
           if (!normal_ok || !z_ok) {
@@ -1203,7 +1245,8 @@ private:
         std_msgs::msg::Float32 height_msg;
         height_msg.data = plane_centroid.z();
         table_height_pub_->publish(height_msg);
-        RCLCPP_INFO(get_logger(), "Organized path: Table height (base_link) = %.3f", plane_centroid.z());
+        RCLCPP_INFO(
+          get_logger(), "Organized path: Table height (base_link) = %.3f", plane_centroid.z());
       }
     }
 
@@ -1219,8 +1262,9 @@ private:
         finite_count, finite_ratio * 100.0f);
       return;
     }
-    RCLCPP_INFO(get_logger(), "DEBUG: Finite points after mask: %zu/%zu",
-                finite_count, static_cast<size_t>(width) * static_cast<size_t>(height));
+    RCLCPP_INFO(
+      get_logger(), "DEBUG: Finite points after mask: %zu/%zu",
+      finite_count, static_cast<size_t>(width) * static_cast<size_t>(height));
 
     // RANSAC適用後はorganized構造が壊れているため、unorganized fallbackを使用
     if (ransac_applied) {
@@ -1244,8 +1288,9 @@ private:
       voxel.setInputCloud(unorganized);
       voxel.setLeafSize(voxel_leaf_size_, voxel_leaf_size_, voxel_leaf_size_);
       voxel.filter(*downsampled);
-      RCLCPP_INFO(get_logger(), "VoxelGrid downsampling: %zu → %zu points",
-                  unorganized->size(), downsampled->size());
+      RCLCPP_INFO(
+        get_logger(), "VoxelGrid downsampling: %zu → %zu points",
+        unorganized->size(), downsampled->size());
       unorganized = downsampled;
 
       if (unorganized->empty()) {
@@ -1260,7 +1305,8 @@ private:
       ne_omp.setKSearch(15);
       pcl::PointCloud<pcl::Normal>::Ptr normals_omp(new pcl::PointCloud<pcl::Normal>());
       ne_omp.compute(*normals_omp);
-      RCLCPP_INFO(get_logger(), "Normal estimation complete: %zu normals computed", normals_omp->size());
+      RCLCPP_INFO(
+        get_logger(), "Normal estimation complete: %zu normals computed", normals_omp->size());
 
       std::vector<float> curvatures;
       curvatures.reserve(normals_omp->size());
@@ -1271,12 +1317,15 @@ private:
       }
       RCLCPP_INFO(get_logger(), "Valid curvatures: %zu", curvatures.size());
       if (curvatures.size() < 3) {
-        RCLCPP_WARN(get_logger(), "RANSAC fallback: not enough points for curvature (%zu).", curvatures.size());
+        RCLCPP_WARN(
+          get_logger(), "RANSAC fallback: not enough points for curvature (%zu).",
+          curvatures.size());
         return;
       }
       const float curvature_percentile = 0.85f;
-      RCLCPP_INFO(get_logger(), "Extracting edges from curvatures (threshold will be %.0f%% percentile)...",
-                  curvature_percentile * 100.0f);
+      RCLCPP_INFO(
+        get_logger(), "Extracting edges from curvatures (threshold will be %.0f%% percentile)...",
+        curvature_percentile * 100.0f);
       std::vector<float> sorted = curvatures;
       size_t idx = static_cast<size_t>(curvature_percentile * (sorted.size() - 1));
       std::nth_element(sorted.begin(), sorted.begin() + idx, sorted.end());
@@ -1292,7 +1341,9 @@ private:
       }
       RCLCPP_INFO(get_logger(), "Edge points extracted: %zu", edge_ids.size());
       if (edge_ids.size() < 3) {
-        RCLCPP_WARN(get_logger(), "RANSAC fallback: not enough edge points (%zu).", edge_ids.size());
+        RCLCPP_WARN(
+          get_logger(), "RANSAC fallback: not enough edge points (%zu).",
+          edge_ids.size());
         return;
       }
 
@@ -1325,14 +1376,18 @@ private:
         nv.normalize();
         edge_normals.push_back(nv);
       }
-      RCLCPP_INFO(get_logger(), "Valid edge points after filtering (base_link): %zu", edge_points.size());
+      RCLCPP_INFO(
+        get_logger(), "Valid edge points after filtering (base_link): %zu", edge_points.size());
       if (edge_points.size() < 3) {
-        RCLCPP_WARN(get_logger(), "RANSAC fallback: insufficient valid edge points (%zu).", edge_points.size());
+        RCLCPP_WARN(
+          get_logger(), "RANSAC fallback: insufficient valid edge points (%zu).",
+          edge_points.size());
         return;
       }
 
       const int gmm_components = 3;
-      RCLCPP_INFO(get_logger(), "Preparing GMM samples (%zu points × 6 features)...", edge_points.size());
+      RCLCPP_INFO(
+        get_logger(), "Preparing GMM samples (%zu points × 6 features)...", edge_points.size());
       cv::Mat samples(static_cast<int>(edge_points.size()), 6, CV_32F);
       for (size_t i = 0; i < edge_points.size(); ++i) {
         for (int k = 0; k < 3; ++k) {
@@ -1341,11 +1396,15 @@ private:
         }
       }
       cv::Ptr<cv::ml::EM> em = cv::ml::EM::create();
-      int clusters = std::max(1, std::min<int>(gmm_components, static_cast<int>(edge_points.size())));
+      int clusters =
+        std::max(1, std::min<int>(gmm_components, static_cast<int>(edge_points.size())));
       RCLCPP_INFO(get_logger(), "Training GMM with %d clusters...", clusters);
       em->setClustersNumber(clusters);
       em->setCovarianceMatrixType(cv::ml::EM::COV_MAT_GENERIC);
-      em->setTermCriteria(cv::TermCriteria(cv::TermCriteria::MAX_ITER + cv::TermCriteria::EPS, 50, 1e-3));
+      em->setTermCriteria(
+        cv::TermCriteria(
+          cv::TermCriteria::MAX_ITER + cv::TermCriteria::EPS, 50,
+          1e-3));
       if (!em->trainEM(samples, cv::noArray(), cv::noArray(), cv::noArray())) {
         RCLCPP_WARN(get_logger(), "RANSAC fallback: GMM training failed.");
         return;
@@ -1361,8 +1420,9 @@ private:
         counts[static_cast<size_t>(lbl)]++;
       }
       int best_cluster = static_cast<int>(std::distance(
-        counts.begin(), std::max_element(counts.begin(), counts.end())));
-      RCLCPP_INFO(get_logger(), "Best cluster: %d with %d points", best_cluster, counts[best_cluster]);
+          counts.begin(), std::max_element(counts.begin(), counts.end())));
+      RCLCPP_INFO(
+        get_logger(), "Best cluster: %d with %d points", best_cluster, counts[best_cluster]);
       std::vector<size_t> cluster_indices;
       for (size_t i = 0; i < labels.size(); ++i) {
         if (labels[i] == best_cluster) {
@@ -1380,14 +1440,16 @@ private:
         size_t step = cluster_indices.size() / max_sample_size;
         for (size_t i = 0; i < cluster_indices.size(); i += step) {
           sampled_indices.push_back(cluster_indices[i]);
-          if (sampled_indices.size() >= max_sample_size) break;
+          if (sampled_indices.size() >= max_sample_size) {break;}
         }
-        RCLCPP_INFO(get_logger(), "Sampled %zu/%zu cluster points for grasp computation",
-                    sampled_indices.size(), cluster_indices.size());
+        RCLCPP_INFO(
+          get_logger(), "Sampled %zu/%zu cluster points for grasp computation",
+          sampled_indices.size(), cluster_indices.size());
       } else {
         sampled_indices = cluster_indices;
-        RCLCPP_INFO(get_logger(), "Computing grasp score for %zu cluster points...",
-                    sampled_indices.size());
+        RCLCPP_INFO(
+          get_logger(), "Computing grasp score for %zu cluster points...",
+          sampled_indices.size());
       }
 
       const float sigma = 0.1f;
@@ -1415,8 +1477,9 @@ private:
       }
       Eigen::Vector3f centroid = edge_points[best_idx];
       Eigen::Vector3f normal_sum = edge_normals[best_idx];
-      RCLCPP_INFO(get_logger(), "Grasp centroid computed: [%.3f, %.3f, %.3f] with score %.3f",
-                  centroid.x(), centroid.y(), centroid.z(), best_score);
+      RCLCPP_INFO(
+        get_logger(), "Grasp centroid computed: [%.3f, %.3f, %.3f] with score %.3f",
+        centroid.x(), centroid.y(), centroid.z(), best_score);
       tf2::Quaternion q = normal_to_quaternion(normal_sum);
 
       // Point cloud is already in base_link frame
@@ -1451,14 +1514,15 @@ private:
 
       // Publish edge points for visualization (in base_link frame)
       if (edge_pub_->get_subscription_count() > 0) {
-        RCLCPP_INFO(get_logger(), "[RANSAC PATH] Publishing %zu edge points in frame '%s'",
+        RCLCPP_INFO(
+          get_logger(), "[RANSAC PATH] Publishing %zu edge points in frame '%s'",
           edge_points.size(), resolved_base_frame_.c_str());
 
         pcl::PointCloud<PointT>::Ptr edges_base(new pcl::PointCloud<PointT>());
         edges_base->header.frame_id = resolved_base_frame_;
         edges_base->header.stamp = pcl_conversions::toPCL(header.stamp);
         edges_base->points.reserve(edge_points.size());
-        for (const auto& pt : edge_points) {
+        for (const auto & pt : edge_points) {
           PointT p;
           p.x = pt.x();
           p.y = pt.y();
@@ -1485,14 +1549,16 @@ private:
     // Verify organized structure is still valid
     // IntegralImageNormalEstimation requires width >= 3 and height >= 3
     if (!filtered->isOrganized() || filtered->width < 3 || filtered->height < 3) {
-      RCLCPP_WARN(get_logger(),
-                  "Filtered cloud has invalid organized structure (width=%u, height=%u). Skipping frame.",
-                  filtered->width, filtered->height);
+      RCLCPP_WARN(
+        get_logger(),
+        "Filtered cloud has invalid organized structure (width=%u, height=%u). Skipping frame.",
+        filtered->width, filtered->height);
       return;
     }
 
-    RCLCPP_INFO(get_logger(), "DEBUG: Organized cloud: width=%u, height=%u",
-                filtered->width, filtered->height);
+    RCLCPP_INFO(
+      get_logger(), "DEBUG: Organized cloud: width=%u, height=%u",
+      filtered->width, filtered->height);
 
     // Compute organized normals (integral image) to feed OrganizedEdgeFromNormals.
     pcl::PointCloud<pcl::Normal>::Ptr normals(new pcl::PointCloud<pcl::Normal>());
@@ -1505,7 +1571,7 @@ private:
 
     try {
       ne.compute(*normals);
-    } catch (const std::exception& e) {
+    } catch (const std::exception & e) {
       RCLCPP_ERROR(get_logger(), "Normal estimation failed: %s. Skipping frame.", e.what());
       return;
     } catch (...) {
@@ -1530,7 +1596,7 @@ private:
 
     try {
       oed.compute(edge_labels, label_indices);
-    } catch (const std::exception& e) {
+    } catch (const std::exception & e) {
       RCLCPP_ERROR(get_logger(), "Edge detection failed: %s. Skipping frame.", e.what());
       return;
     } catch (...) {
@@ -1551,12 +1617,15 @@ private:
     if (label_indices.size() >
       static_cast<size_t>(pcl::OrganizedEdgeBase<PointT, pcl::Label>::EDGELABEL_HIGH_CURVATURE))
     {
-      mark_edges(label_indices[
-        pcl::OrganizedEdgeBase<PointT, pcl::Label>::EDGELABEL_OCCLUDING]);
-      mark_edges(label_indices[
-        pcl::OrganizedEdgeBase<PointT, pcl::Label>::EDGELABEL_HIGH_CURVATURE]);
+      mark_edges(
+        label_indices[
+          pcl::OrganizedEdgeBase<PointT, pcl::Label>::EDGELABEL_OCCLUDING]);
+      mark_edges(
+        label_indices[
+          pcl::OrganizedEdgeBase<PointT, pcl::Label>::EDGELABEL_HIGH_CURVATURE]);
     }
-    size_t edge_pixel_count = std::accumulate(edge_map.begin(), edge_map.end(), static_cast<size_t>(0));
+    size_t edge_pixel_count =
+      std::accumulate(edge_map.begin(), edge_map.end(), static_cast<size_t>(0));
     if (edge_pixel_count < 5) {
       RCLCPP_WARN(get_logger(), "Too few edge pixels detected (%zu).", edge_pixel_count);
     } else {
@@ -1710,7 +1779,10 @@ private:
     int clusters = std::max(1, std::min<int>(4, static_cast<int>(candidates.size())));
     em->setClustersNumber(clusters);
     em->setCovarianceMatrixType(cv::ml::EM::COV_MAT_GENERIC);
-    em->setTermCriteria(cv::TermCriteria(cv::TermCriteria::MAX_ITER + cv::TermCriteria::EPS, 50, 1e-3));
+    em->setTermCriteria(
+      cv::TermCriteria(
+        cv::TermCriteria::MAX_ITER + cv::TermCriteria::EPS, 50,
+        1e-3));
 
     if (!em->trainEM(samples, cv::noArray(), cv::noArray(), cv::noArray())) {
       RCLCPP_WARN(get_logger(), "GMM training failed.");
@@ -1730,8 +1802,8 @@ private:
     }
 
     int best_cluster = static_cast<int>(std::distance(
-      counts.begin(),
-      std::max_element(counts.begin(), counts.end())));
+        counts.begin(),
+        std::max_element(counts.begin(), counts.end())));
 
     std::vector<size_t> cluster_indices;
     cluster_indices.reserve(candidates.size());
@@ -1809,7 +1881,8 @@ private:
 
     // Publish edge points for visualization (in base_link frame)
     if (edge_pub_->get_subscription_count() > 0) {
-      RCLCPP_INFO(get_logger(), "[ORGANIZED PATH] Publishing %zu edge points in frame '%s'",
+      RCLCPP_INFO(
+        get_logger(), "[ORGANIZED PATH] Publishing %zu edge points in frame '%s'",
         edges->size(), resolved_base_frame_.c_str());
 
       sensor_msgs::msg::PointCloud2 edges_msg;

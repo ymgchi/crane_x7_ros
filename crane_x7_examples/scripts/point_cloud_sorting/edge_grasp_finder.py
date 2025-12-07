@@ -14,25 +14,25 @@
 
 """
 Edge-based grasp point detection from point clouds.
+
 Based on color_filtered_grasp_live.py, adapted for region-specific detection.
 """
 
 import struct
 from dataclasses import dataclass, field
-from typing import List, Optional, Tuple
+from typing import Optional, Tuple
+
 import numpy as np
 import open3d as o3d
-
-from rclpy.node import Node
 from rclpy.duration import Duration
-from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy
+from rclpy.node import Node
+from rclpy.qos import QoSHistoryPolicy, QoSProfile, QoSReliabilityPolicy
 from sensor_msgs.msg import PointCloud2, PointField
 from sensor_msgs_py import point_cloud2 as pc2
-from visualization_msgs.msg import Marker
-from geometry_msgs.msg import Point
-from std_msgs.msg import Header
 from sklearn.mixture import GaussianMixture
-from tf2_ros import Buffer, TransformListener, TransformException
+from std_msgs.msg import Header
+from tf2_ros import Buffer, TransformException, TransformListener
+from visualization_msgs.msg import Marker
 
 from .color_detector import Color
 
@@ -40,6 +40,7 @@ from .color_detector import Color
 @dataclass
 class GraspTarget:
     """Grasp target with position and approach direction."""
+
     position: np.ndarray = field(default_factory=lambda: np.zeros(3))
     normal: np.ndarray = field(default_factory=lambda: np.array([0.0, 0.0, 1.0]))
     color: Color = Color.NONE
@@ -74,9 +75,8 @@ class EdgeGraspFinder:
         """
         Initialize EdgeGraspFinder.
 
-        Args:
-            node: ROS 2 node for subscriptions and TF
-            output_frame: Target coordinate frame for points
+        :param node: ROS 2 node for subscriptions and TF
+        :param output_frame: Target coordinate frame for points
         """
         self._node = node
         self._logger = node.get_logger()
@@ -133,13 +133,10 @@ class EdgeGraspFinder:
         """
         Find optimal grasp point within a spherical region.
 
-        Args:
-            center: Center point (x, y, z) in base_link frame
-            radius: Search radius in meters
-            color: Associated color for the target
-
-        Returns:
-            GraspTarget if found, None otherwise
+        :param center: Center point (x, y, z) in base_link frame
+        :param radius: Search radius in meters
+        :param color: Associated color for the target
+        :returns: GraspTarget if found, None otherwise
         """
         if self._latest_cloud is None:
             self._logger.warn("No point cloud available")
@@ -251,7 +248,6 @@ class EdgeGraspFinder:
     ) -> Optional[o3d.geometry.PointCloud]:
         """Convert PointCloud2 to Open3D and apply transformation."""
         field_names = [f.name for f in msg.fields]
-        has_rgb = "rgb" in field_names or "rgba" in field_names
         color_field = "rgb" if "rgb" in field_names else "rgba" if "rgba" in field_names else None
 
         points = []
